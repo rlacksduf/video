@@ -4,6 +4,8 @@ import { supabase } from "../lib/supabase";
 function Profile() {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [avatarFile, setAvatarFile] = useState(null);
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -20,13 +22,8 @@ function Profile() {
     loadProfile();
   }, []);
 
-  // =========================
-  // 프로필 불러오기
-  // =========================
   const loadProfile = async () => {
     setLoading(true);
-    setMessage("");
-    setErrorMessage("");
 
     const {
       data: { user },
@@ -43,7 +40,7 @@ function Profile() {
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("display_name")
+      .select("display_name, avatar_url")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -55,14 +52,39 @@ function Profile() {
     }
 
     setDisplayName(data?.display_name || "사용자");
+
+    setAvatarUrl(data?.avatar_url || "");
+
     setLoading(false);
   };
 
-  // =========================
-  // 프로필 수정
-  // =========================
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setErrorMessage("이미지 파일만 업로드할 수 있습니다.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMessage("프로필 사진은 5MB 이하로 올려주세요.");
+      return;
+    }
+
+    setAvatarFile(file);
+    setAvatarUrl(URL.createObjectURL(file));
+
+    setMessage("");
+    setErrorMessage("");
+  };
+
   const handleProfileSave = async (e) => {
     e.preventDefault();
+
+    setMessage("");
+    setErrorMessage("");
 
     if (!displayName.trim()) {
       setErrorMessage("닉네임을 입력해주세요.");
@@ -70,41 +92,67 @@ function Profile() {
     }
 
     setSavingProfile(true);
-    setMessage("");
-    setErrorMessage("");
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (userError || !user) {
-      setErrorMessage("로그인 정보를 확인해주세요.");
-      setSavingProfile(false);
-      return;
-    }
+      if (!user) {
+        throw new Error("로그인 정보를 확인해주세요.");
+      }
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        display_name: displayName.trim(),
-      })
-      .eq("id", user.id);
+      let newAvatarUrl = avatarUrl;
 
-    if (error) {
+      if (avatarFile) {
+        const extension =
+          avatarFile.name.split(".").pop()?.toLowerCase() || "jpg";
+
+        const filePath = `${user.id}/avatar.${extension}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(filePath, avatarFile, {
+            cacheControl: "3600",
+            upsert: true,
+            contentType: avatarFile.type,
+          });
+
+        if (uploadError) {
+          throw uploadError;
+        }
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("avatars").getPublicUrl(filePath);
+
+        newAvatarUrl = `${publicUrl}?t=${Date.now()}`;
+      }
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          display_name: displayName.trim(),
+          avatar_url: newAvatarUrl,
+        })
+        .eq("id", user.id);
+
+      if (error) {
+        throw error;
+      }
+
+      setAvatarUrl(newAvatarUrl);
+      setAvatarFile(null);
+      setMessage("프로필이 저장되었습니다.");
+    } catch (error) {
       console.error("프로필 수정 오류:", error);
-      setErrorMessage("프로필 수정에 실패했습니다.");
-      setSavingProfile(false);
-      return;
-    }
 
-    setMessage("프로필 수정 완료!");
-    setSavingProfile(false);
+      setErrorMessage(error.message || "프로필 수정에 실패했습니다.");
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
-  // =========================
-  // 비밀번호 변경
-  // =========================
   const handlePasswordChange = async (e) => {
     e.preventDefault();
 
@@ -133,8 +181,7 @@ function Profile() {
     });
 
     if (error) {
-      console.error("비밀번호 변경 오류:", error);
-      setErrorMessage(error.message || "비밀번호 변경에 실패했습니다.");
+      setErrorMessage(error.message);
       setChangingPassword(false);
       return;
     }
@@ -143,32 +190,24 @@ function Profile() {
     setConfirmPassword("");
 
     setMessage("비밀번호가 변경되었습니다.");
+
     setChangingPassword(false);
   };
 
-  // =========================
-  // 로그아웃
-  // =========================
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
 
     if (error) {
-      console.error("로그아웃 오류:", error);
       setErrorMessage("로그아웃에 실패했습니다.");
     }
   };
 
-  // =========================
-  // 계정 탈퇴
-  // =========================
   const handleDeleteAccount = async () => {
     const confirmed = window.confirm(
       "정말 계정을 탈퇴하시겠습니까?\n이 작업은 되돌릴 수 없습니다.",
     );
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     setDeletingAccount(true);
     setMessage("");
@@ -185,35 +224,18 @@ function Profile() {
       return;
     }
 
-    /*
-      중요:
-      Supabase 클라이언트에서는 auth.users를 직접 삭제할 수 없다.
-      그래서 여기서는 먼저 profiles와 사용자 관련 데이터를 삭제하고
-      마지막에 로그아웃한다.
-
-      auth.users 자체를 완전히 삭제하려면
-      Supabase Edge Function + service_role 같은 서버 측 처리가 필요하다.
-    */
-
-    // 사용자 프로필 삭제
     const { error: profileError } = await supabase
       .from("profiles")
       .delete()
       .eq("id", user.id);
 
     if (profileError) {
-      console.error("프로필 삭제 오류:", profileError);
       setErrorMessage("계정 탈퇴 처리 중 오류가 발생했습니다.");
       setDeletingAccount(false);
       return;
     }
 
-    // 로그아웃
-    const { error: logoutError } = await supabase.auth.signOut();
-
-    if (logoutError) {
-      console.error("탈퇴 후 로그아웃 오류:", logoutError);
-    }
+    await supabase.auth.signOut();
 
     setDeletingAccount(false);
     setMessage("계정 탈퇴 처리가 완료되었습니다.");
@@ -221,221 +243,201 @@ function Profile() {
 
   if (loading) {
     return (
-      <div style={styles.center}>
-        <h2>프로필 불러오는 중...</h2>
+      <div className="xten-content-loading">
+        <div className="xten-spinner" />
+        <p>프로필 불러오는 중...</p>
       </div>
     );
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <h1>프로필</h1>
+    <div className="xten-profile">
+      <div className="xten-page-head">
+        <div>
+          <div className="xten-home-kicker">ACCOUNT</div>
 
-        {/* =========================
-            기본 정보
-        ========================= */}
-        <section style={styles.section}>
-          <h2>기본 정보</h2>
+          <h1 className="xten-page-title">프로필</h1>
 
-          <div style={styles.field}>
-            <label style={styles.label}>이메일</label>
+          <p className="xten-page-description">
+            계정과 보안 정보를 관리하세요.
+          </p>
+        </div>
+      </div>
 
-            <input value={email} disabled style={styles.disabledInput} />
+      <div className="xten-profile-layout">
+        <section className="xten-card xten-profile-main">
+          <div className="xten-card-heading">
+            <div>
+              <span>PROFILE</span>
+              <h2>프로필 정보</h2>
+            </div>
           </div>
 
-          <form onSubmit={handleProfileSave}>
-            <div style={styles.field}>
-              <label style={styles.label}>닉네임</label>
-
-              <input
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                style={styles.input}
-                maxLength={30}
-              />
+          <div className="xten-avatar-section">
+            <div className="xten-large-avatar">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="프로필" />
+              ) : (
+                <span>{displayName?.charAt(0) || "U"}</span>
+              )}
             </div>
 
-            <button
-              type="submit"
-              disabled={savingProfile}
-              style={styles.primaryButton}
-            >
-              {savingProfile ? "저장 중..." : "프로필 저장"}
-            </button>
+            <div className="xten-avatar-info">
+              <strong>{displayName || "사용자"}</strong>
+
+              <p>프로필 사진은 5MB 이하의 이미지를 사용할 수 있습니다.</p>
+
+              <label className="xten-outline-button">
+                사진 변경
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarChange}
+                  hidden
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="xten-divider" />
+
+          <form onSubmit={handleProfileSave}>
+            <div className="xten-profile-block">
+              <div className="xten-block-title">
+                <span>01</span>
+                <div>
+                  <strong>기본 정보</strong>
+                  <p>닉네임과 이메일</p>
+                </div>
+              </div>
+
+              <div className="xten-form-stack">
+                <div className="xten-field">
+                  <label>이메일</label>
+
+                  <input
+                    value={email}
+                    disabled
+                    className="xten-input xten-input-disabled"
+                  />
+                </div>
+
+                <div className="xten-field">
+                  <label>닉네임</label>
+
+                  <input
+                    value={displayName}
+                    maxLength={30}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="xten-input"
+                    placeholder="닉네임"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={savingProfile}
+                className="xten-btn xten-btn-primary"
+              >
+                {savingProfile ? "저장 중..." : "프로필 저장"}
+              </button>
+            </div>
           </form>
-        </section>
 
-        <hr />
-
-        {/* =========================
-            비밀번호 변경
-        ========================= */}
-        <section style={styles.section}>
-          <h2>비밀번호 변경</h2>
+          <div className="xten-divider" />
 
           <form onSubmit={handlePasswordChange}>
-            <div style={styles.field}>
-              <label style={styles.label}>새 비밀번호</label>
+            <div className="xten-profile-block">
+              <div className="xten-block-title">
+                <span>02</span>
+                <div>
+                  <strong>비밀번호</strong>
+                  <p>안전한 비밀번호로 계정을 보호하세요.</p>
+                </div>
+              </div>
 
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="6자 이상"
-                style={styles.input}
-              />
+              <div className="xten-form-stack">
+                <div className="xten-field">
+                  <label>새 비밀번호</label>
+
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="6자 이상"
+                    className="xten-input"
+                  />
+                </div>
+
+                <div className="xten-field">
+                  <label>새 비밀번호 확인</label>
+
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="새 비밀번호 다시 입력"
+                    className="xten-input"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={changingPassword}
+                className="xten-btn"
+              >
+                {changingPassword ? "변경 중..." : "비밀번호 변경"}
+              </button>
             </div>
+          </form>
 
-            <div style={styles.field}>
-              <label style={styles.label}>새 비밀번호 확인</label>
+          {message && <div className="xten-success">{message}</div>}
 
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="새 비밀번호 다시 입력"
-                style={styles.input}
-              />
+          {errorMessage && <div className="xten-error">{errorMessage}</div>}
+        </section>
+
+        <aside className="xten-profile-side">
+          <section className="xten-card xten-account-card">
+            <div className="xten-card-heading">
+              <div>
+                <span>ACCOUNT</span>
+                <h2>계정 관리</h2>
+              </div>
             </div>
 
             <button
-              type="submit"
-              disabled={changingPassword}
-              style={styles.primaryButton}
+              type="button"
+              onClick={handleLogout}
+              className="xten-btn xten-full-button"
             >
-              {changingPassword ? "변경 중..." : "비밀번호 변경"}
+              로그아웃
             </button>
-          </form>
-        </section>
+          </section>
 
-        <hr />
+          <section className="xten-danger-card">
+            <div className="xten-danger-icon">!</div>
 
-        {/* 메시지 */}
-        {message && <div style={styles.success}>{message}</div>}
+            <div>
+              <span>DELETE ACCOUNT</span>
+              <h3>계정 탈퇴</h3>
 
-        {errorMessage && <div style={styles.error}>{errorMessage}</div>}
+              <p>프로필 정보가 삭제되며 이 작업은 되돌릴 수 없습니다.</p>
+            </div>
 
-        {/* =========================
-            계정 관리
-        ========================= */}
-        <section style={styles.section}>
-          <h2>계정 관리</h2>
-
-          <button onClick={handleLogout} style={styles.secondaryButton}>
-            로그아웃
-          </button>
-
-          <button
-            onClick={handleDeleteAccount}
-            disabled={deletingAccount}
-            style={styles.dangerButton}
-          >
-            {deletingAccount ? "탈퇴 처리 중..." : "계정 탈퇴"}
-          </button>
-        </section>
+            <button
+              type="button"
+              onClick={handleDeleteAccount}
+              disabled={deletingAccount}
+            >
+              {deletingAccount ? "처리 중..." : "계정 탈퇴"}
+            </button>
+          </section>
+        </aside>
       </div>
     </div>
   );
 }
-
-const styles = {
-  center: {
-    minHeight: "300px",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  container: {
-    maxWidth: "700px",
-    margin: "0 auto",
-  },
-
-  card: {
-    backgroundColor: "#fff",
-    padding: "30px",
-    borderRadius: "12px",
-    boxShadow: "0 4px 15px rgba(0, 0, 0, 0.06)",
-  },
-
-  section: {
-    margin: "25px 0",
-  },
-
-  field: {
-    marginBottom: "18px",
-  },
-
-  label: {
-    display: "block",
-    marginBottom: "8px",
-    fontWeight: "600",
-  },
-
-  input: {
-    width: "100%",
-    boxSizing: "border-box",
-    padding: "12px",
-    border: "1px solid #ddd",
-    borderRadius: "8px",
-    fontSize: "15px",
-  },
-
-  disabledInput: {
-    width: "100%",
-    boxSizing: "border-box",
-    padding: "12px",
-    border: "1px solid #ddd",
-    borderRadius: "8px",
-    fontSize: "15px",
-    backgroundColor: "#f3f3f3",
-    color: "#777",
-  },
-
-  primaryButton: {
-    border: "none",
-    backgroundColor: "#111",
-    color: "#fff",
-    padding: "11px 18px",
-    borderRadius: "8px",
-    cursor: "pointer",
-  },
-
-  secondaryButton: {
-    border: "1px solid #ddd",
-    backgroundColor: "#fff",
-    color: "#111",
-    padding: "11px 18px",
-    borderRadius: "8px",
-    cursor: "pointer",
-    marginRight: "10px",
-  },
-
-  dangerButton: {
-    border: "none",
-    backgroundColor: "#d11",
-    color: "#fff",
-    padding: "11px 18px",
-    borderRadius: "8px",
-    cursor: "pointer",
-  },
-
-  success: {
-    backgroundColor: "#eef8ee",
-    color: "#267326",
-    padding: "12px",
-    borderRadius: "8px",
-    marginBottom: "15px",
-  },
-
-  error: {
-    backgroundColor: "#fff0f0",
-    color: "#c00",
-    padding: "12px",
-    borderRadius: "8px",
-    marginBottom: "15px",
-  },
-};
 
 export default Profile;

@@ -1,350 +1,510 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 function Upload() {
-  const [videoFile, setVideoFile] = useState(null);
-  const [thumbnailFile, setThumbnailFile] = useState(null);
+  const [type, setType] = useState("video");
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("기타");
+  const [category, setCategory] = useState("일반");
   const [tags, setTags] = useState("");
+
+  const [videoFile, setVideoFile] = useState(null);
+  const [thumbnailFile, setThumbnailFile] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
+
+  const [videoPreview, setVideoPreview] = useState("");
+  const [imagePreview, setImagePreview] = useState("");
+  const [thumbnailPreview, setThumbnailPreview] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  const handleUpload = async (e) => {
-    e.preventDefault();
+  const categories = [
+    "일반",
+    "게임",
+    "음악",
+    "브이로그",
+    "공부",
+    "스포츠",
+    "IT",
+    "기타",
+  ];
 
-    if (!supabase) {
-      setMessage("Supabase 연결을 확인해주세요.");
+  useEffect(() => {
+    return () => {
+      if (videoPreview) {
+        URL.revokeObjectURL(videoPreview);
+      }
+
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+
+      if (thumbnailPreview) {
+        URL.revokeObjectURL(thumbnailPreview);
+      }
+    };
+  }, [videoPreview, imagePreview, thumbnailPreview]);
+
+  const handleVideoChange = (e) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    setVideoFile(file);
+    setVideoPreview(URL.createObjectURL(file));
+    setError("");
+    setMessage("");
+  };
+
+  const handleThumbnailChange = (e) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setError("썸네일은 이미지 파일만 가능합니다.");
       return;
     }
 
-    if (!videoFile) {
-      setMessage("영상을 선택해주세요.");
+    setThumbnailFile(file);
+    setThumbnailPreview(URL.createObjectURL(file));
+    setError("");
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    setError("");
+    setMessage("");
+  };
+
+  const resetForm = () => {
+    setTitle("");
+    setDescription("");
+    setCategory("일반");
+    setTags("");
+
+    setVideoFile(null);
+    setThumbnailFile(null);
+    setImageFile(null);
+
+    setVideoPreview("");
+    setImagePreview("");
+    setThumbnailPreview("");
+  };
+
+  const uploadFile = async (bucket, file, path) => {
+    const { error } = await supabase.storage.from(bucket).upload(path, file, {
+      cacheControl: "3600",
+      upsert: true,
+    });
+
+    if (error) throw error;
+
+    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+
+    return data.publicUrl;
+  };
+
+  const handleUpload = async () => {
+    setMessage("");
+    setError("");
+
+    if (!supabase) {
+      setError("Supabase 연결이 설정되지 않았습니다.");
       return;
     }
 
     if (!title.trim()) {
-      setMessage("영상 제목을 입력해주세요.");
+      setError("제목을 입력해주세요.");
       return;
     }
 
-    setLoading(true);
-    setMessage("");
+    if (type === "video" && !videoFile) {
+      setError("업로드할 동영상을 선택해주세요.");
+      return;
+    }
+
+    if (type === "image" && !imageFile) {
+      setError("업로드할 이미지를 선택해주세요.");
+      return;
+    }
 
     try {
-      // 현재 로그인한 사용자 가져오기
+      setLoading(true);
+
       const {
         data: { user },
         error: userError,
       } = await supabase.auth.getUser();
 
-      if (userError) {
-        throw userError;
-      }
+      if (userError) throw userError;
 
       if (!user) {
         throw new Error("로그인이 필요합니다.");
       }
 
-      // 파일 확장자
-      const videoExtension =
-        videoFile.name.split(".").pop()?.toLowerCase() || "mp4";
+      const safeName = (fileName) => fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
 
-      // 고유 파일 이름
-      const videoFileName = `${user.id}/${crypto.randomUUID()}.${videoExtension}`;
+      const timestamp = Date.now();
 
-      // 1. 영상 업로드
-      const { error: videoUploadError } = await supabase.storage
-        .from("videos")
-        .upload(videoFileName, videoFile, {
-          cacheControl: "3600",
-          upsert: false,
-          contentType: videoFile.type,
-        });
-
-      if (videoUploadError) {
-        throw videoUploadError;
-      }
-
-      // 2. 영상 공개 URL 가져오기
-      const {
-        data: { publicUrl: videoUrl },
-      } = supabase.storage.from("videos").getPublicUrl(videoFileName);
-
-      // 3. 썸네일 업로드
-      let thumbnailUrl = null;
-
-      if (thumbnailFile) {
-        const thumbnailExtension =
-          thumbnailFile.name.split(".").pop()?.toLowerCase() || "jpg";
-
-        const thumbnailFileName = `${user.id}/${crypto.randomUUID()}.${thumbnailExtension}`;
-
-        const { error: thumbnailUploadError } = await supabase.storage
-          .from("thumbnails")
-          .upload(thumbnailFileName, thumbnailFile, {
-            cacheControl: "3600",
-            upsert: false,
-            contentType: thumbnailFile.type,
-          });
-
-        if (thumbnailUploadError) {
-          throw thumbnailUploadError;
-        }
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("thumbnails").getPublicUrl(thumbnailFileName);
-
-        thumbnailUrl = publicUrl;
-      }
-
-      // 4. 태그 문자열 → 배열
       const tagArray = tags
         .split(",")
         .map((tag) => tag.trim())
-        .filter((tag) => tag !== "");
+        .filter(Boolean);
 
-      // 5. DB에 영상 정보 저장
-      const { error: insertError } = await supabase.from("videos").insert({
-        owner_id: user.id,
-        title: title.trim(),
-        description: description.trim(),
-        thumbnail_url: thumbnailUrl,
-        video_url: videoUrl,
-        category,
-        tags: tagArray,
-        status: "published",
-      });
+      if (type === "video") {
+        const videoPath = `${user.id}/${timestamp}_${safeName(videoFile.name)}`;
 
-      if (insertError) {
-        throw insertError;
+        const videoUrl = await uploadFile("videos", videoFile, videoPath);
+
+        let thumbnailUrl = null;
+
+        if (thumbnailFile) {
+          const thumbnailPath = `${user.id}/${timestamp}_thumb_${safeName(
+            thumbnailFile.name,
+          )}`;
+
+          thumbnailUrl = await uploadFile(
+            "thumbnails",
+            thumbnailFile,
+            thumbnailPath,
+          );
+        }
+
+        const { error: insertError } = await supabase.from("videos").insert({
+          owner_id: user.id,
+          title: title.trim(),
+          description: description.trim(),
+          thumbnail_url: thumbnailUrl,
+          video_url: videoUrl,
+          category,
+          tags: tagArray,
+          status: "published",
+        });
+
+        if (insertError) throw insertError;
+      } else {
+        const imagePath = `${user.id}/${timestamp}_${safeName(imageFile.name)}`;
+
+        const imageUrl = await uploadFile("images", imageFile, imagePath);
+
+        const { error: insertError } = await supabase
+          .from("image_posts")
+          .insert({
+            owner_id: user.id,
+            title: title.trim(),
+            description: description.trim(),
+            image_url: imageUrl,
+            category,
+            tags: tagArray,
+          });
+
+        if (insertError) throw insertError;
       }
 
-      setMessage("영상 업로드 성공!");
+      setMessage(
+        type === "video"
+          ? "영상이 성공적으로 업로드되었습니다."
+          : "이미지가 성공적으로 업로드되었습니다.",
+      );
 
-      // 입력값 초기화
-      setVideoFile(null);
-      setThumbnailFile(null);
-      setTitle("");
-      setDescription("");
-      setCategory("기타");
-      setTags("");
+      resetForm();
+    } catch (err) {
+      console.error("업로드 오류:", err);
 
-      // 파일 input 초기화를 위해 key 변경 대신 form reset을 사용하려면
-      // 아래처럼 직접 DOM을 건드리지 않아도 되지만,
-      // 현재는 메시지와 상태 초기화만 처리한다.
-    } catch (error) {
-      console.error(error);
-      setMessage(error.message || "업로드 중 오류가 발생했습니다.");
+      setError(err.message || "업로드 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>영상 업로드</h1>
+    <div className="xten-upload">
+      <div className="xten-upload-heading">
+        <div>
+          <div className="xten-home-kicker">XTEN STUDIO</div>
 
-        <form onSubmit={handleUpload}>
-          {/* 영상 */}
-          <div style={styles.field}>
-            <label style={styles.label}>영상 파일</label>
+          <h1 className="xten-page-title">업로드</h1>
 
-            <input
-              type="file"
-              accept="video/*"
-              onChange={(e) => {
-                setVideoFile(e.target.files?.[0] || null);
-              }}
-            />
+          <p className="xten-page-description">
+            콘텐츠를 업로드하고 Xten에 공유하세요.
+          </p>
+        </div>
+      </div>
 
-            {videoFile && (
-              <p style={styles.fileInfo}>선택된 영상: {videoFile.name}</p>
-            )}
+      <div className="xten-upload-type">
+        <button
+          type="button"
+          className={type === "video" ? "active" : ""}
+          onClick={() => {
+            setType("video");
+            setError("");
+            setMessage("");
+          }}
+        >
+          <span>🎬</span>
+
+          <div>
+            <strong>영상</strong>
+            <small>동영상 업로드</small>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          className={type === "image" ? "active" : ""}
+          onClick={() => {
+            setType("image");
+            setError("");
+            setMessage("");
+          }}
+        >
+          <span>🖼️</span>
+
+          <div>
+            <strong>이미지</strong>
+            <small>이미지 업로드</small>
+          </div>
+        </button>
+      </div>
+
+      <div className="xten-upload-layout">
+        <section className="xten-card xten-upload-media">
+          <div className="xten-card-heading">
+            <div>
+              <span>MEDIA</span>
+
+              <h2>{type === "video" ? "영상 파일" : "이미지 파일"}</h2>
+            </div>
           </div>
 
-          {/* 썸네일 */}
-          <div style={styles.field}>
-            <label style={styles.label}>썸네일</label>
+          {type === "video" ? (
+            <>
+              <input
+                id="video-upload"
+                type="file"
+                accept="video/*"
+                onChange={handleVideoChange}
+                hidden
+              />
 
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                setThumbnailFile(e.target.files?.[0] || null);
-              }}
-            />
+              {videoPreview ? (
+                <div className="xten-media-preview xten-video-preview">
+                  <video src={videoPreview} controls />
+                </div>
+              ) : (
+                <label htmlFor="video-upload" className="xten-drop-zone">
+                  <div className="xten-drop-icon">🎬</div>
 
-            {thumbnailFile && (
-              <p style={styles.fileInfo}>선택된 썸네일: {thumbnailFile.name}</p>
-            )}
+                  <strong>영상 파일을 선택하세요</strong>
+
+                  <p>MP4, MOV, WEBM 등</p>
+
+                  <span>파일 선택</span>
+                </label>
+              )}
+
+              {videoFile && (
+                <div className="xten-file-card">
+                  <div className="xten-file-icon">🎬</div>
+
+                  <div className="xten-file-info">
+                    <strong>{videoFile.name}</strong>
+
+                    <span>{(videoFile.size / 1024 / 1024).toFixed(1)} MB</span>
+                  </div>
+
+                  <label htmlFor="video-upload" className="xten-file-change">
+                    변경
+                  </label>
+                </div>
+              )}
+
+              <div className="xten-thumbnail-area">
+                <div className="xten-subheading">
+                  <div>
+                    <span>OPTIONAL</span>
+                    <h3>썸네일</h3>
+                    <p>영상 대표 이미지를 설정합니다.</p>
+                  </div>
+
+                  <em>선택 사항</em>
+                </div>
+
+                <input
+                  id="thumbnail-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleThumbnailChange}
+                  hidden
+                />
+
+                <label
+                  htmlFor="thumbnail-upload"
+                  className="xten-thumbnail-card"
+                >
+                  <div className="xten-thumbnail-preview">
+                    {thumbnailPreview ? (
+                      <img src={thumbnailPreview} alt="썸네일 미리보기" />
+                    ) : (
+                      <span>🖼️</span>
+                    )}
+                  </div>
+
+                  <div>
+                    <strong>
+                      {thumbnailFile ? thumbnailFile.name : "썸네일 추가"}
+                    </strong>
+
+                    <p>JPG · PNG · WEBP</p>
+                  </div>
+                </label>
+              </div>
+            </>
+          ) : (
+            <>
+              <input
+                id="image-upload"
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                hidden
+              />
+
+              {imagePreview ? (
+                <div className="xten-image-preview">
+                  <img src={imagePreview} alt="이미지 미리보기" />
+                </div>
+              ) : (
+                <label
+                  htmlFor="image-upload"
+                  className="xten-drop-zone xten-image-drop-zone"
+                >
+                  <div className="xten-drop-icon">🖼️</div>
+
+                  <strong>이미지 파일을 선택하세요</strong>
+
+                  <p>JPG, PNG, WEBP 등</p>
+
+                  <span>파일 선택</span>
+                </label>
+              )}
+
+              {imageFile && (
+                <div className="xten-file-card">
+                  <div className="xten-file-icon">🖼️</div>
+
+                  <div className="xten-file-info">
+                    <strong>{imageFile.name}</strong>
+
+                    <span>{(imageFile.size / 1024 / 1024).toFixed(1)} MB</span>
+                  </div>
+
+                  <label htmlFor="image-upload" className="xten-file-change">
+                    변경
+                  </label>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+
+        <section className="xten-card xten-upload-form-card">
+          <div className="xten-card-heading">
+            <div>
+              <span>DETAILS</span>
+              <h2>게시물 정보</h2>
+            </div>
           </div>
 
-          {/* 제목 */}
-          <div style={styles.field}>
-            <label style={styles.label}>제목</label>
+          <div className="xten-form-stack">
+            <div className="xten-field">
+              <label>제목</label>
 
-            <input
-              type="text"
-              placeholder="영상 제목을 입력하세요"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              style={styles.input}
-              maxLength={200}
-            />
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="게시물 제목"
+                className="xten-input"
+              />
+            </div>
+
+            <div className="xten-field">
+              <label>설명</label>
+
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="게시물에 대한 설명"
+                rows={7}
+                className="xten-textarea"
+              />
+            </div>
+
+            <div className="xten-field">
+              <label>카테고리</label>
+
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="xten-select"
+              >
+                {categories.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="xten-field">
+              <label>태그</label>
+
+              <input
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+                placeholder="축구, 하이라이트, Xten"
+                className="xten-input"
+              />
+
+              <small>쉼표(,)로 구분합니다.</small>
+            </div>
           </div>
 
-          {/* 설명 */}
-          <div style={styles.field}>
-            <label style={styles.label}>설명</label>
+          {error && <div className="xten-error">{error}</div>}
 
-            <textarea
-              placeholder="영상 설명을 입력하세요"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              style={styles.textarea}
-              rows={6}
-            />
-          </div>
+          {message && <div className="xten-success">{message}</div>}
 
-          {/* 카테고리 */}
-          <div style={styles.field}>
-            <label style={styles.label}>카테고리</label>
-
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              style={styles.input}
-            >
-              <option value="기타">기타</option>
-              <option value="게임">게임</option>
-              <option value="음악">음악</option>
-              <option value="스포츠">스포츠</option>
-              <option value="교육">교육</option>
-              <option value="브이로그">브이로그</option>
-              <option value="엔터테인먼트">엔터테인먼트</option>
-              <option value="뉴스">뉴스</option>
-            </select>
-          </div>
-
-          {/* 태그 */}
-          <div style={styles.field}>
-            <label style={styles.label}>태그</label>
-
-            <input
-              type="text"
-              placeholder="예: 축구, 손흥민, 하이라이트"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              style={styles.input}
-            />
-
-            <p style={styles.help}>태그는 쉼표(,)로 구분하세요.</p>
-          </div>
-
-          {/* 업로드 버튼 */}
           <button
-            type="submit"
+            type="button"
+            className="xten-upload-submit"
+            onClick={handleUpload}
             disabled={loading}
-            style={{
-              ...styles.button,
-              opacity: loading ? 0.6 : 1,
-            }}
           >
-            {loading ? "업로드 중..." : "영상 업로드"}
+            {loading ? (
+              <>
+                <span className="xten-spinner small" />
+                업로드 중...
+              </>
+            ) : (
+              <>
+                <span>↑</span>
+                {type === "video" ? "영상 업로드" : "이미지 업로드"}
+              </>
+            )}
           </button>
-        </form>
-
-        {/* 결과 메시지 */}
-        {message && <p style={styles.message}>{message}</p>}
+        </section>
       </div>
     </div>
   );
 }
-
-const styles = {
-  container: {
-    minHeight: "100vh",
-    backgroundColor: "#f5f5f5",
-    padding: "40px 20px",
-  },
-
-  card: {
-    maxWidth: "700px",
-    margin: "0 auto",
-    backgroundColor: "#ffffff",
-    padding: "30px",
-    borderRadius: "12px",
-    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
-  },
-
-  title: {
-    marginBottom: "30px",
-  },
-
-  field: {
-    marginBottom: "22px",
-  },
-
-  label: {
-    display: "block",
-    marginBottom: "8px",
-    fontWeight: "600",
-  },
-
-  input: {
-    width: "100%",
-    padding: "12px",
-    border: "1px solid #ccc",
-    borderRadius: "8px",
-    boxSizing: "border-box",
-    fontSize: "15px",
-  },
-
-  textarea: {
-    width: "100%",
-    padding: "12px",
-    border: "1px solid #ccc",
-    borderRadius: "8px",
-    boxSizing: "border-box",
-    fontSize: "15px",
-    resize: "vertical",
-  },
-
-  button: {
-    width: "100%",
-    padding: "14px",
-    border: "none",
-    borderRadius: "8px",
-    backgroundColor: "#111",
-    color: "#fff",
-    fontSize: "16px",
-    cursor: "pointer",
-  },
-
-  fileInfo: {
-    marginTop: "8px",
-    fontSize: "14px",
-    color: "#666",
-  },
-
-  help: {
-    marginTop: "6px",
-    fontSize: "13px",
-    color: "#777",
-  },
-
-  message: {
-    marginTop: "20px",
-    padding: "12px",
-    backgroundColor: "#f0f0f0",
-    borderRadius: "8px",
-  },
-};
 
 export default Upload;

@@ -2,9 +2,13 @@ import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
 
 import Auth from "./Auth";
-import Profile from "./pages/Profile";
-import Upload from "./pages/Upload";
+
 import Home from "./pages/Home";
+import Images from "./pages/Images";
+import ImageDetail from "./pages/ImageDetail";
+
+import Upload from "./pages/Upload";
+import Profile from "./pages/Profile";
 import VideoDetail from "./pages/VideoDetail";
 import MyPage from "./pages/MyPage";
 import MyVideos from "./pages/MyVideos";
@@ -13,74 +17,25 @@ import Admin from "./pages/Admin";
 function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
+
   const [loading, setLoading] = useState(true);
 
   const [page, setPage] = useState("home");
-  const [selectedVideoId, setSelectedVideoId] = useState(null);
 
-  const ensureProfile = async (user) => {
-    if (!user) return;
+  const [selectedVideo, setSelectedVideo] = useState(null);
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (error) {
-      console.error("프로필 조회 오류:", error);
-      return;
-    }
-
-    if (data) {
-      setProfile(data);
-      return;
-    }
-
-    const displayName =
-      user.user_metadata?.display_name || user.email?.split("@")[0] || "사용자";
-
-    const { data: newProfile, error: insertError } = await supabase
-      .from("profiles")
-      .insert({
-        id: user.id,
-        display_name: displayName,
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error("프로필 생성 오류:", insertError);
-      return;
-    }
-
-    setProfile(newProfile);
-  };
+  const [selectedImage, setSelectedImage] = useState(null);
 
   useEffect(() => {
-    const getSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      setSession(session);
-
-      if (session?.user) {
-        await ensureProfile(session.user);
-      }
-
-      setLoading(false);
-    };
-
-    getSession();
+    loadSession();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
+    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      setSession(newSession);
 
-      if (session?.user) {
-        await ensureProfile(session.user);
+      if (newSession?.user) {
+        await loadProfile(newSession.user.id);
       } else {
         setProfile(null);
       }
@@ -93,6 +48,42 @@ function App() {
     };
   }, []);
 
+  const loadSession = async () => {
+    const {
+      data: { session: currentSession },
+      error,
+    } = await supabase.auth.getSession();
+
+    if (error) {
+      console.error("세션 조회 오류:", error);
+    }
+
+    setSession(currentSession);
+
+    if (currentSession?.user) {
+      await loadProfile(currentSession.user.id);
+    }
+
+    setLoading(false);
+  };
+
+  const loadProfile = async (userId) => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+
+    if (error) {
+      console.error("프로필 조회 오류:", error);
+
+      setProfile(null);
+      return;
+    }
+
+    setProfile(data);
+  };
+
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
 
@@ -103,24 +94,84 @@ function App() {
 
     setSession(null);
     setProfile(null);
+
     setPage("home");
-    setSelectedVideoId(null);
+
+    setSelectedVideo(null);
+    setSelectedImage(null);
+  };
+
+  const openHome = () => {
+    setPage("home");
+
+    setSelectedVideo(null);
+    setSelectedImage(null);
+  };
+
+  const openImages = () => {
+    setPage("images");
+
+    setSelectedVideo(null);
+    setSelectedImage(null);
+  };
+
+  const openUpload = () => {
+    setPage("upload");
+
+    setSelectedVideo(null);
+    setSelectedImage(null);
+  };
+
+  const openProfile = () => {
+    setPage("profile");
+
+    setSelectedVideo(null);
+    setSelectedImage(null);
+  };
+
+  const openMyPage = () => {
+    setPage("mypage");
+
+    setSelectedVideo(null);
+    setSelectedImage(null);
+  };
+
+  const openAdmin = () => {
+    setPage("admin");
+
+    setSelectedVideo(null);
+    setSelectedImage(null);
   };
 
   const openVideo = (videoId) => {
-    setSelectedVideoId(videoId);
-    setPage("video");
+    setSelectedVideo(videoId);
+    setSelectedImage(null);
+
+    setPage("video-detail");
   };
 
-  const goHome = () => {
-    setSelectedVideoId(null);
+  const openImage = (imageId) => {
+    setSelectedImage(imageId);
+    setSelectedVideo(null);
+
+    setPage("image-detail");
+  };
+
+  const goBackToImages = () => {
+    setSelectedImage(null);
+    setPage("images");
+  };
+
+  const goBackToHome = () => {
+    setSelectedVideo(null);
     setPage("home");
   };
 
   if (loading) {
     return (
-      <div style={styles.center}>
-        <h2>Xten 불러오는 중...</h2>
+      <div className="xten-v2-loading-screen">
+        <div className="xten-v2-spinner" />
+        <p>불러오는 중...</p>
       </div>
     );
   }
@@ -130,139 +181,151 @@ function App() {
   }
 
   return (
-    <div style={styles.app}>
-      <header style={styles.header}>
-        <div style={styles.logo} onClick={goHome}>
-          Xten
+    <div className="xten-v2-app">
+      {/* NAVBAR */}
+      <header className="xten-v2-navbar">
+        <div
+          className="xten-v2-logo"
+          onClick={openHome}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              openHome();
+            }
+          }}
+        >
+          <span className="xten-v2-logo-x">X</span>
+
+          <span className="xten-v2-logo-ten">TEN</span>
         </div>
 
-        <nav style={styles.nav}>
-          <button style={styles.navButton} onClick={goHome}>
+        <nav className="xten-v2-nav">
+          <button
+            type="button"
+            className={
+              page === "home" ? "xten-v2-nav-item active" : "xten-v2-nav-item"
+            }
+            onClick={openHome}
+          >
             홈
           </button>
 
-          <button style={styles.navButton} onClick={() => setPage("upload")}>
+          <button
+            type="button"
+            className={
+              page === "images" || page === "image-detail"
+                ? "xten-v2-nav-item active"
+                : "xten-v2-nav-item"
+            }
+            onClick={openImages}
+          >
+            이미지
+          </button>
+
+          <button
+            type="button"
+            className={
+              page === "upload" ? "xten-v2-nav-item active" : "xten-v2-nav-item"
+            }
+            onClick={openUpload}
+          >
             업로드
           </button>
 
-          <button style={styles.navButton} onClick={() => setPage("profile")}>
-            프로필
-          </button>
-
-          <button style={styles.navButton} onClick={() => setPage("mypage")}>
+          <button
+            type="button"
+            className={
+              page === "mypage" ? "xten-v2-nav-item active" : "xten-v2-nav-item"
+            }
+            onClick={openMyPage}
+          >
             마이페이지
           </button>
 
-          <button style={styles.navButton} onClick={() => setPage("myvideos")}>
-            내 영상
-          </button>
-
           {profile?.role === "admin" && (
-            <button style={styles.adminButton} onClick={() => setPage("admin")}>
+            <button
+              type="button"
+              className={
+                page === "admin"
+                  ? "xten-v2-nav-item active"
+                  : "xten-v2-nav-item"
+              }
+              onClick={openAdmin}
+            >
               관리자
             </button>
           )}
+        </nav>
 
-          <button style={styles.logoutButton} onClick={handleLogout}>
+        <div className="xten-v2-nav-right">
+          <button
+            type="button"
+            className="xten-v2-avatar"
+            onClick={openProfile}
+          >
+            {profile?.avatar_url ? (
+              <img src={profile.avatar_url} alt="프로필" />
+            ) : (
+              <span>
+                {(profile?.display_name || "U").charAt(0).toUpperCase()}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            className="xten-v2-logout"
+            onClick={handleLogout}
+          >
             로그아웃
           </button>
-        </nav>
+        </div>
       </header>
 
-      <main style={styles.main}>
-        {page === "home" && <Home onSelectVideo={openVideo} />}
+      {/* CONTENT */}
+      <main className="xten-v2-main">
+        {page === "home" && (
+          <Home onSelectVideo={openVideo} onSelectImage={openImage} />
+        )}
 
-        {page === "upload" && <Upload />}
+        {page === "images" && <Images onSelectImage={openImage} />}
 
-        {page === "profile" && <Profile />}
+        {page === "image-detail" && selectedImage && (
+          <ImageDetail imageId={selectedImage} onBack={goBackToImages} />
+        )}
 
-        {page === "mypage" && <MyPage onSelectVideo={openVideo} />}
+        {page === "upload" && <Upload onDone={openHome} />}
+
+        {page === "video-detail" && selectedVideo && (
+          <VideoDetail videoId={selectedVideo} onBack={goBackToHome} />
+        )}
+
+        {page === "profile" && (
+          <Profile
+            profile={profile}
+            onProfileUpdated={() => {
+              if (session?.user?.id) {
+                loadProfile(session.user.id);
+              }
+            }}
+          />
+        )}
+
+        {page === "mypage" && (
+          <MyPage
+            profile={profile}
+            onSelectVideo={openVideo}
+            onSelectImage={openImage}
+          />
+        )}
 
         {page === "myvideos" && <MyVideos onSelectVideo={openVideo} />}
 
-        {page === "admin" && <Admin />}
-
-        {page === "video" && selectedVideoId && (
-          <VideoDetail videoId={selectedVideoId} onBack={goHome} />
-        )}
+        {page === "admin" && profile?.role === "admin" && <Admin />}
       </main>
     </div>
   );
 }
-
-const styles = {
-  app: {
-    minHeight: "100vh",
-    backgroundColor: "#f5f5f5",
-  },
-
-  header: {
-    minHeight: "64px",
-    backgroundColor: "#fff",
-    borderBottom: "1px solid #e5e5e5",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "0 30px",
-    boxSizing: "border-box",
-    gap: "20px",
-    flexWrap: "wrap",
-  },
-
-  logo: {
-    fontSize: "24px",
-    fontWeight: "800",
-    cursor: "pointer",
-    letterSpacing: "-1px",
-  },
-
-  nav: {
-    display: "flex",
-    gap: "8px",
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-
-  navButton: {
-    border: "none",
-    backgroundColor: "transparent",
-    padding: "9px 12px",
-    cursor: "pointer",
-    fontSize: "14px",
-  },
-
-  adminButton: {
-    border: "none",
-    backgroundColor: "#6d28d9",
-    color: "#fff",
-    padding: "9px 12px",
-    borderRadius: "7px",
-    cursor: "pointer",
-    fontSize: "14px",
-  },
-
-  logoutButton: {
-    border: "none",
-    backgroundColor: "#111",
-    color: "#fff",
-    padding: "9px 14px",
-    borderRadius: "7px",
-    cursor: "pointer",
-    fontSize: "14px",
-  },
-
-  main: {
-    maxWidth: "1200px",
-    margin: "0 auto",
-    padding: "40px 20px",
-  },
-
-  center: {
-    minHeight: "100vh",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-};
 
 export default App;

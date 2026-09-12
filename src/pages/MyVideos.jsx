@@ -15,7 +15,9 @@ function MyVideos({ onSelectVideo }) {
   const [newThumbnail, setNewThumbnail] = useState(null);
 
   const [saving, setSaving] = useState(false);
+
   const [message, setMessage] = useState("");
+
   const [errorMessage, setErrorMessage] = useState("");
 
   const categories = [
@@ -33,9 +35,6 @@ function MyVideos({ onSelectVideo }) {
     loadMyVideos();
   }, []);
 
-  // =========================
-  // 내 영상 불러오기
-  // =========================
   const loadMyVideos = async () => {
     setLoading(true);
 
@@ -58,7 +57,6 @@ function MyVideos({ onSelectVideo }) {
       });
 
     if (error) {
-      console.error("내 영상 조회 오류:", error);
       setErrorMessage("영상을 불러오지 못했습니다.");
       setLoading(false);
       return;
@@ -68,14 +66,14 @@ function MyVideos({ onSelectVideo }) {
     setLoading(false);
   };
 
-  // =========================
-  // 수정 화면 열기
-  // =========================
   const openEdit = (video) => {
     setEditingVideo(video);
+
     setTitle(video.title || "");
     setDescription(video.description || "");
+
     setCategory(video.category || "기타");
+
     setTags(Array.isArray(video.tags) ? video.tags.join(", ") : "");
 
     setNewThumbnail(null);
@@ -83,9 +81,6 @@ function MyVideos({ onSelectVideo }) {
     setErrorMessage("");
   };
 
-  // =========================
-  // 수정 취소
-  // =========================
   const cancelEdit = () => {
     setEditingVideo(null);
     setNewThumbnail(null);
@@ -93,9 +88,6 @@ function MyVideos({ onSelectVideo }) {
     setErrorMessage("");
   };
 
-  // =========================
-  // 영상 수정
-  // =========================
   const handleUpdate = async (e) => {
     e.preventDefault();
 
@@ -113,7 +105,6 @@ function MyVideos({ onSelectVideo }) {
     try {
       let thumbnailUrl = editingVideo.thumbnail_url;
 
-      // 새 썸네일 업로드
       if (newThumbnail) {
         const {
           data: { user },
@@ -150,7 +141,7 @@ function MyVideos({ onSelectVideo }) {
       const tagArray = tags
         .split(",")
         .map((tag) => tag.trim())
-        .filter((tag) => tag !== "");
+        .filter(Boolean);
 
       const { error } = await supabase
         .from("videos")
@@ -163,34 +154,25 @@ function MyVideos({ onSelectVideo }) {
         })
         .eq("id", editingVideo.id);
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
-      setMessage("영상 수정 완료!");
+      setMessage("영상 수정이 완료되었습니다.");
 
       setEditingVideo(null);
       setNewThumbnail(null);
 
       await loadMyVideos();
     } catch (error) {
-      console.error("영상 수정 오류:", error);
-
       setErrorMessage(error.message || "영상 수정에 실패했습니다.");
     } finally {
       setSaving(false);
     }
   };
 
-  // =========================
-  // 영상 삭제
-  // =========================
   const handleDelete = async (videoId) => {
     const confirmed = window.confirm("정말 이 영상을 삭제하시겠습니까?");
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     const { error } = await supabase
       .from("videos")
@@ -200,7 +182,6 @@ function MyVideos({ onSelectVideo }) {
       .eq("id", videoId);
 
     if (error) {
-      console.error("영상 삭제 오류:", error);
       setErrorMessage("영상 삭제에 실패했습니다.");
       return;
     }
@@ -211,334 +192,209 @@ function MyVideos({ onSelectVideo }) {
   };
 
   if (loading) {
-    return <h2>내 영상 불러오는 중...</h2>;
-  }
-
-  // =========================
-  // 수정 화면
-  // =========================
-  if (editingVideo) {
     return (
-      <div style={styles.container}>
-        <div style={styles.card}>
-          <h1>영상 수정</h1>
-
-          <form onSubmit={handleUpdate}>
-            <div style={styles.field}>
-              <label style={styles.label}>제목</label>
-
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                style={styles.input}
-              />
-            </div>
-
-            <div style={styles.field}>
-              <label style={styles.label}>설명</label>
-
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={6}
-                style={styles.textarea}
-              />
-            </div>
-
-            <div style={styles.field}>
-              <label style={styles.label}>카테고리</label>
-
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                style={styles.input}
-              >
-                {categories.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={styles.field}>
-              <label style={styles.label}>태그</label>
-
-              <input
-                value={tags}
-                onChange={(e) => setTags(e.target.value)}
-                placeholder="축구, 하이라이트, 손흥민"
-                style={styles.input}
-              />
-
-              <p style={styles.help}>쉼표로 구분하세요.</p>
-            </div>
-
-            <div style={styles.field}>
-              <label style={styles.label}>새 썸네일</label>
-
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setNewThumbnail(e.target.files?.[0] || null)}
-              />
-
-              {newThumbnail && <p style={styles.help}>{newThumbnail.name}</p>}
-            </div>
-
-            {message && <p style={styles.success}>{message}</p>}
-
-            {errorMessage && <p style={styles.error}>{errorMessage}</p>}
-
-            <div style={styles.actions}>
-              <button
-                type="submit"
-                disabled={saving}
-                style={styles.primaryButton}
-              >
-                {saving ? "저장 중..." : "저장"}
-              </button>
-
-              <button
-                type="button"
-                onClick={cancelEdit}
-                style={styles.secondaryButton}
-              >
-                취소
-              </button>
-            </div>
-          </form>
-        </div>
+      <div className="xten-content-loading">
+        <div className="xten-spinner" />
+        <p>내 영상 불러오는 중...</p>
       </div>
     );
   }
 
-  // =========================
-  // 내 영상 목록
-  // =========================
+  if (editingVideo) {
+    return (
+      <div className="xten-myvideos">
+        <div className="xten-page-head">
+          <div>
+            <div className="xten-home-kicker">MY CONTENT</div>
+
+            <h1 className="xten-page-title">영상 수정</h1>
+
+            <p className="xten-page-description">
+              업로드한 영상 정보를 수정하세요.
+            </p>
+          </div>
+        </div>
+
+        <section className="xten-card xten-edit-card">
+          <form onSubmit={handleUpdate}>
+            <div className="xten-form-stack">
+              <div className="xten-field">
+                <label>제목</label>
+
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="xten-input"
+                />
+              </div>
+
+              <div className="xten-field">
+                <label>설명</label>
+
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={7}
+                  className="xten-textarea"
+                />
+              </div>
+
+              <div className="xten-field">
+                <label>카테고리</label>
+
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="xten-select"
+                >
+                  {categories.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="xten-field">
+                <label>태그</label>
+
+                <input
+                  value={tags}
+                  onChange={(e) => setTags(e.target.value)}
+                  placeholder="축구, 하이라이트, Xten"
+                  className="xten-input"
+                />
+
+                <small>쉼표로 구분하세요.</small>
+              </div>
+
+              <div className="xten-field">
+                <label>새 썸네일</label>
+
+                <label className="xten-file-picker">
+                  <span>🖼️</span>
+
+                  <strong>
+                    {newThumbnail ? newThumbnail.name : "새 썸네일 선택"}
+                  </strong>
+
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) =>
+                      setNewThumbnail(e.target.files?.[0] || null)
+                    }
+                    hidden
+                  />
+                </label>
+              </div>
+            </div>
+
+            {message && <div className="xten-success">{message}</div>}
+
+            {errorMessage && <div className="xten-error">{errorMessage}</div>}
+
+            <div className="xten-edit-actions">
+              <button
+                type="submit"
+                disabled={saving}
+                className="xten-btn xten-btn-primary"
+              >
+                {saving ? "저장 중..." : "변경사항 저장"}
+              </button>
+
+              <button type="button" onClick={cancelEdit} className="xten-btn">
+                취소
+              </button>
+            </div>
+          </form>
+        </section>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <h1>내 영상</h1>
+    <div className="xten-myvideos">
+      <div className="xten-page-head">
+        <div>
+          <div className="xten-home-kicker">MY CONTENT</div>
 
-      {message && <p style={styles.success}>{message}</p>}
+          <h1 className="xten-page-title">내 영상</h1>
 
-      {errorMessage && <p style={styles.error}>{errorMessage}</p>}
+          <p className="xten-page-description">업로드한 콘텐츠를 관리하세요.</p>
+        </div>
+
+        <div className="xten-page-count">{videos.length}개</div>
+      </div>
+
+      {message && (
+        <div className="xten-success xten-page-message">{message}</div>
+      )}
+
+      {errorMessage && (
+        <div className="xten-error xten-page-message">{errorMessage}</div>
+      )}
 
       {videos.length === 0 ? (
-        <div style={styles.empty}>
+        <div className="xten-empty-card">
+          <div className="xten-empty-icon">🎬</div>
+
           <h2>업로드한 영상이 없습니다.</h2>
+
           <p>영상을 업로드하면 여기에 표시됩니다.</p>
         </div>
       ) : (
-        <div style={styles.grid}>
+        <div className="xten-myvideos-grid">
           {videos.map((video) => (
-            <div key={video.id} style={styles.card}>
-              <div
+            <article key={video.id} className="xten-myvideo-card">
+              <button
+                type="button"
+                className="xten-myvideo-media"
                 onClick={() => onSelectVideo(video.id)}
-                style={styles.clickArea}
               >
                 {video.thumbnail_url ? (
-                  <img
-                    src={video.thumbnail_url}
-                    alt={video.title}
-                    style={styles.thumbnail}
-                  />
+                  <img src={video.thumbnail_url} alt={video.title} />
                 ) : (
-                  <div style={styles.noThumbnail}>썸네일 없음</div>
+                  <div className="xten-no-thumbnail">
+                    <b>▶</b>
+                    <span>THUMBNAIL</span>
+                  </div>
                 )}
+              </button>
 
-                <div style={styles.info}>
-                  <h3>{video.title}</h3>
+              <div className="xten-myvideo-body">
+                <h3>{video.title}</h3>
 
-                  <p style={styles.meta}>
-                    {video.category}
-                    {" · "}
-                    조회수 {video.views || 0}
-                  </p>
+                <p>
+                  {video.category} · 조회수 {video.views || 0}
+                </p>
 
-                  <p style={styles.description}>
-                    {video.description || "설명 없음"}
-                  </p>
-                </div>
+                <span>{video.description || "설명 없음"}</span>
               </div>
 
-              <div style={styles.videoActions}>
+              <div className="xten-myvideo-actions">
                 <button
+                  type="button"
                   onClick={() => openEdit(video)}
-                  style={styles.editButton}
+                  className="xten-btn"
                 >
                   수정
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => handleDelete(video.id)}
-                  style={styles.deleteButton}
+                  className="xten-btn danger"
                 >
                   삭제
                 </button>
               </div>
-            </div>
+            </article>
           ))}
         </div>
       )}
     </div>
   );
 }
-
-const styles = {
-  container: {
-    maxWidth: "700px",
-    margin: "0 auto",
-  },
-
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: "12px",
-    overflow: "hidden",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
-  },
-
-  field: {
-    marginBottom: "20px",
-  },
-
-  label: {
-    display: "block",
-    marginBottom: "8px",
-    fontWeight: "600",
-  },
-
-  input: {
-    width: "100%",
-    boxSizing: "border-box",
-    padding: "12px",
-    border: "1px solid #ddd",
-    borderRadius: "8px",
-  },
-
-  textarea: {
-    width: "100%",
-    boxSizing: "border-box",
-    padding: "12px",
-    border: "1px solid #ddd",
-    borderRadius: "8px",
-    resize: "vertical",
-  },
-
-  help: {
-    color: "#888",
-    fontSize: "13px",
-  },
-
-  actions: {
-    display: "flex",
-    gap: "10px",
-  },
-
-  primaryButton: {
-    border: "none",
-    backgroundColor: "#111",
-    color: "#fff",
-    padding: "11px 18px",
-    borderRadius: "8px",
-    cursor: "pointer",
-  },
-
-  secondaryButton: {
-    border: "1px solid #ddd",
-    backgroundColor: "#fff",
-    padding: "11px 18px",
-    borderRadius: "8px",
-    cursor: "pointer",
-  },
-
-  success: {
-    padding: "12px",
-    backgroundColor: "#eef8ee",
-    color: "#267326",
-    borderRadius: "8px",
-  },
-
-  error: {
-    padding: "12px",
-    backgroundColor: "#fff0f0",
-    color: "#c00",
-    borderRadius: "8px",
-  },
-
-  empty: {
-    backgroundColor: "#fff",
-    textAlign: "center",
-    padding: "60px 20px",
-    borderRadius: "12px",
-  },
-
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-    gap: "20px",
-    marginTop: "20px",
-  },
-
-  clickArea: {
-    cursor: "pointer",
-  },
-
-  thumbnail: {
-    width: "100%",
-    aspectRatio: "16 / 9",
-    objectFit: "cover",
-    display: "block",
-  },
-
-  noThumbnail: {
-    width: "100%",
-    aspectRatio: "16 / 9",
-    backgroundColor: "#ddd",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "#777",
-  },
-
-  info: {
-    padding: "15px",
-  },
-
-  meta: {
-    color: "#888",
-    fontSize: "13px",
-  },
-
-  description: {
-    color: "#666",
-    fontSize: "14px",
-  },
-
-  videoActions: {
-    display: "flex",
-    gap: "8px",
-    padding: "0 15px 15px",
-  },
-
-  editButton: {
-    flex: 1,
-    border: "1px solid #ddd",
-    backgroundColor: "#fff",
-    padding: "9px",
-    borderRadius: "7px",
-    cursor: "pointer",
-  },
-
-  deleteButton: {
-    flex: 1,
-    border: "none",
-    backgroundColor: "#d11",
-    color: "#fff",
-    padding: "9px",
-    borderRadius: "7px",
-    cursor: "pointer",
-  },
-};
 
 export default MyVideos;

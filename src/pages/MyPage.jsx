@@ -36,29 +36,18 @@ function MyPage({ onSelectVideo }) {
     setLoading(false);
   };
 
-  // =========================
-  // 프로필
-  // =========================
   const loadProfile = async (userId) => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
       .maybeSingle();
 
-    if (error) {
-      console.error("프로필 조회 오류:", error);
-      return;
-    }
-
     setProfile(data);
   };
 
-  // =========================
-  // 시청 기록 + 이어보기
-  // =========================
   const loadHistory = async (userId) => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("watch_history")
       .select(
         `
@@ -72,19 +61,11 @@ function MyPage({ onSelectVideo }) {
         ascending: false,
       });
 
-    if (error) {
-      console.error("시청 기록 조회 오류:", error);
-      return;
-    }
-
     setHistoryVideos(data || []);
   };
 
-  // =========================
-  // 좋아요한 영상
-  // =========================
   const loadLikedVideos = async (userId) => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("video_likes")
       .select(
         `
@@ -97,19 +78,11 @@ function MyPage({ onSelectVideo }) {
         ascending: false,
       });
 
-    if (error) {
-      console.error("좋아요 영상 조회 오류:", error);
-      return;
-    }
-
     setLikedVideos(data || []);
   };
 
-  // =========================
-  // 저장한 영상
-  // =========================
   const loadSavedVideos = async (userId) => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("saved_videos")
       .select(
         `
@@ -122,236 +95,156 @@ function MyPage({ onSelectVideo }) {
         ascending: false,
       });
 
-    if (error) {
-      console.error("저장 영상 조회 오류:", error);
-      return;
-    }
-
     setSavedVideos(data || []);
   };
 
   if (loading) {
-    return <h2>마이페이지 불러오는 중...</h2>;
+    return (
+      <div className="xten-content-loading">
+        <div className="xten-spinner" />
+        <p>마이페이지 불러오는 중...</p>
+      </div>
+    );
   }
 
   return (
-    <div>
-      {/* 프로필 */}
-      <section style={styles.profileBox}>
-        <div style={styles.avatar}>
+    <div className="xten-mypage">
+      <div className="xten-page-head">
+        <div>
+          <div className="xten-home-kicker">MY XTEN</div>
+
+          <h1 className="xten-page-title">마이페이지</h1>
+
+          <p className="xten-page-description">
+            내가 시청한 콘텐츠와 활동을 확인하세요.
+          </p>
+        </div>
+      </div>
+
+      <section className="xten-card xten-mypage-profile">
+        <div className="xten-mypage-avatar">
           {profile?.display_name?.charAt(0) || "U"}
         </div>
 
         <div>
-          <h1>{profile?.display_name || "사용자"}</h1>
+          <strong>{profile?.display_name || "사용자"}</strong>
 
-          <p style={styles.profileText}>내 영상 활동을 한곳에서 확인하세요.</p>
+          <p>Xten에서의 활동을 한눈에 확인하세요.</p>
         </div>
       </section>
 
-      {/* 이어보기 */}
-      <section style={styles.section}>
-        <h2>▶ 이어보기</h2>
+      <MySection
+        eyebrow="CONTINUE"
+        title="이어보기"
+        description="보던 영상을 이어서 시청하세요."
+        empty="이어볼 영상이 없습니다."
+        items={historyVideos}
+        progress
+        onSelectVideo={onSelectVideo}
+      />
 
-        {historyVideos.length === 0 ? (
-          <p style={styles.empty}>이어볼 영상이 없습니다.</p>
-        ) : (
-          <VideoGrid
-            items={historyVideos}
-            getVideo={(item) => item.videos}
-            getProgress={(item) => item.progress_seconds}
-            onSelectVideo={onSelectVideo}
-          />
-        )}
-      </section>
+      <MySection
+        eyebrow="HISTORY"
+        title="시청 기록"
+        description="최근 시청한 영상입니다."
+        empty="시청 기록이 없습니다."
+        items={historyVideos}
+        onSelectVideo={onSelectVideo}
+      />
 
-      {/* 시청 기록 */}
-      <section style={styles.section}>
-        <h2>🕘 시청 기록</h2>
+      <MySection
+        eyebrow="LIKED"
+        title="좋아요한 영상"
+        description="좋아요를 누른 영상입니다."
+        empty="좋아요한 영상이 없습니다."
+        items={likedVideos}
+        onSelectVideo={onSelectVideo}
+      />
 
-        {historyVideos.length === 0 ? (
-          <p style={styles.empty}>시청 기록이 없습니다.</p>
-        ) : (
-          <VideoGrid
-            items={historyVideos}
-            getVideo={(item) => item.videos}
-            onSelectVideo={onSelectVideo}
-          />
-        )}
-      </section>
-
-      {/* 좋아요 */}
-      <section style={styles.section}>
-        <h2>👍 좋아요한 영상</h2>
-
-        {likedVideos.length === 0 ? (
-          <p style={styles.empty}>좋아요한 영상이 없습니다.</p>
-        ) : (
-          <VideoGrid
-            items={likedVideos}
-            getVideo={(item) => item.videos}
-            onSelectVideo={onSelectVideo}
-          />
-        )}
-      </section>
-
-      {/* 저장 */}
-      <section style={styles.section}>
-        <h2>🔖 저장한 영상</h2>
-
-        {savedVideos.length === 0 ? (
-          <p style={styles.empty}>저장한 영상이 없습니다.</p>
-        ) : (
-          <VideoGrid
-            items={savedVideos}
-            getVideo={(item) => item.videos}
-            onSelectVideo={onSelectVideo}
-          />
-        )}
-      </section>
+      <MySection
+        eyebrow="SAVED"
+        title="저장한 영상"
+        description="나중에 볼 영상을 모아두었습니다."
+        empty="저장한 영상이 없습니다."
+        items={savedVideos}
+        onSelectVideo={onSelectVideo}
+      />
     </div>
   );
 }
 
-function VideoGrid({ items, getVideo, getProgress, onSelectVideo }) {
+function MySection({
+  eyebrow,
+  title,
+  description,
+  empty,
+  items,
+  progress,
+  onSelectVideo,
+}) {
   return (
-    <div style={styles.grid}>
-      {items.map((item) => {
-        const video = getVideo(item);
+    <section className="xten-mypage-section">
+      <div className="xten-section-head">
+        <div>
+          <span>{eyebrow}</span>
+          <h2>{title}</h2>
+          <p>{description}</p>
+        </div>
 
-        if (!video) return null;
+        <b>{items.length}</b>
+      </div>
 
-        const progress = getProgress ? Number(getProgress(item) || 0) : 0;
+      {items.length === 0 ? (
+        <div className="xten-mypage-empty">
+          <div>◉</div>
+          <p>{empty}</p>
+        </div>
+      ) : (
+        <div className="xten-mypage-grid">
+          {items.map((item) => {
+            const video = item.videos;
 
-        const durationText =
-          progress > 0 ? `${Math.floor(progress)}초까지 시청` : "";
+            if (!video) return null;
 
-        return (
-          <div
-            key={video.id}
-            style={styles.card}
-            onClick={() => onSelectVideo(video.id)}
-          >
-            {video.thumbnail_url ? (
-              <img
-                src={video.thumbnail_url}
-                alt={video.title}
-                style={styles.thumbnail}
-              />
-            ) : (
-              <div style={styles.noThumbnail}>썸네일 없음</div>
-            )}
+            const seconds = progress ? Number(item.progress_seconds || 0) : 0;
 
-            <div style={styles.info}>
-              <h3 style={styles.title}>{video.title}</h3>
+            return (
+              <article
+                key={video.id}
+                className="xten-video-card"
+                onClick={() => onSelectVideo(video.id)}
+              >
+                <div className="xten-thumbnail">
+                  {video.thumbnail_url ? (
+                    <img src={video.thumbnail_url} alt={video.title} />
+                  ) : (
+                    <div className="xten-no-thumbnail">
+                      <b>▶</b>
+                      <span>THUMBNAIL</span>
+                    </div>
+                  )}
 
-              <p style={styles.meta}>
-                {video.category}
-                {" · "}
-                조회수 {video.views || 0}
-              </p>
+                  {seconds > 0 && (
+                    <span className="xten-progress">
+                      {Math.floor(seconds)}초
+                    </span>
+                  )}
+                </div>
 
-              {durationText && (
-                <p style={styles.progressText}>{durationText}</p>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+                <div className="xten-video-info">
+                  <h3 className="xten-video-title">{video.title}</h3>
+
+                  <p className="xten-video-meta">
+                    {video.category} · 조회수 {video.views || 0}
+                  </p>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
-
-const styles = {
-  profileBox: {
-    backgroundColor: "#fff",
-    padding: "24px",
-    borderRadius: "12px",
-    display: "flex",
-    alignItems: "center",
-    gap: "16px",
-  },
-
-  avatar: {
-    width: "60px",
-    height: "60px",
-    borderRadius: "50%",
-    backgroundColor: "#111",
-    color: "#fff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "24px",
-    fontWeight: "700",
-  },
-
-  profileText: {
-    color: "#777",
-  },
-
-  section: {
-    marginTop: "30px",
-  },
-
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-    gap: "20px",
-    marginTop: "15px",
-  },
-
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: "12px",
-    overflow: "hidden",
-    cursor: "pointer",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
-  },
-
-  thumbnail: {
-    width: "100%",
-    aspectRatio: "16 / 9",
-    objectFit: "cover",
-    display: "block",
-  },
-
-  noThumbnail: {
-    width: "100%",
-    aspectRatio: "16 / 9",
-    backgroundColor: "#ddd",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "#777",
-  },
-
-  info: {
-    padding: "14px",
-  },
-
-  title: {
-    margin: 0,
-    fontSize: "16px",
-  },
-
-  meta: {
-    color: "#888",
-    fontSize: "13px",
-    marginTop: "8px",
-  },
-
-  progressText: {
-    color: "#111",
-    fontSize: "13px",
-    fontWeight: "600",
-  },
-
-  empty: {
-    color: "#888",
-    backgroundColor: "#fff",
-    padding: "25px",
-    borderRadius: "10px",
-  },
-};
 
 export default MyPage;

@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
-function Home({ onSelectVideo }) {
+function Home({ onSelectVideo, onSelectImage }) {
   const [videos, setVideos] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [images, setImages] = useState([]);
+
+  const [loadingVideos, setLoadingVideos] = useState(true);
+  const [loadingImages, setLoadingImages] = useState(true);
 
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState("latest");
   const [category, setCategory] = useState("전체");
-
-  const [searchHistory, setSearchHistory] = useState([]);
+  const [sort, setSort] = useState("latest");
 
   const categories = [
     "전체",
@@ -25,14 +26,14 @@ function Home({ onSelectVideo }) {
 
   useEffect(() => {
     loadVideos();
-    loadSearchHistory();
-  }, [sort, category]);
+  }, [category, sort]);
 
-  // =========================
-  // 영상 불러오기
-  // =========================
+  useEffect(() => {
+    loadImages();
+  }, []);
+
   const loadVideos = async () => {
-    setLoading(true);
+    setLoadingVideos(true);
 
     let query = supabase.from("videos").select("*").eq("status", "published");
 
@@ -58,7 +59,7 @@ function Home({ onSelectVideo }) {
       });
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query.limit(12);
 
     if (error) {
       console.error("영상 조회 오류:", error);
@@ -67,113 +68,34 @@ function Home({ onSelectVideo }) {
       setVideos(data || []);
     }
 
-    setLoading(false);
+    setLoadingVideos(false);
   };
 
-  // =========================
-  // 검색 기록 불러오기
-  // =========================
-  const loadSearchHistory = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
+  const loadImages = async () => {
+    setLoadingImages(true);
 
     const { data, error } = await supabase
-      .from("search_history")
+      .from("image_posts")
       .select("*")
-      .eq("user_id", user.id)
       .order("created_at", {
         ascending: false,
       })
-      .limit(10);
+      .limit(8);
 
     if (error) {
-      console.error("검색 기록 조회 오류:", error);
-      return;
+      console.error("이미지 조회 오류:", error);
+      setImages([]);
+    } else {
+      setImages(data || []);
     }
 
-    setSearchHistory(data || []);
+    setLoadingImages(false);
   };
 
-  // =========================
-  // 검색 실행
-  // =========================
-  const handleSearch = async (keyword = search) => {
-    const value = keyword.trim();
-
-    if (!value) {
-      return;
-    }
-
-    setSearch(value);
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (user) {
-      const { error } = await supabase.from("search_history").insert({
-        user_id: user.id,
-        query: value,
-      });
-
-      if (error) {
-        console.error("검색 기록 저장 오류:", error);
-      } else {
-        loadSearchHistory();
-      }
-    }
-  };
-
-  // Enter 검색
-  const handleSearchKeyDown = (e) => {
-    if (e.key === "Enter") {
-      handleSearch();
-    }
-  };
-
-  // 검색 기록 하나 클릭
-  const handleHistoryClick = (query) => {
-    setSearch(query);
-  };
-
-  // 검색 기록 전체 삭제
-  const clearSearchHistory = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    const { error } = await supabase
-      .from("search_history")
-      .delete()
-      .eq("user_id", user.id);
-
-    if (error) {
-      console.error("검색 기록 삭제 오류:", error);
-      return;
-    }
-
-    setSearchHistory([]);
-  };
-
-  // 검색 기록에서 중복 제거
-  const uniqueHistory = [
-    ...new Map(searchHistory.map((item) => [item.query, item])).values(),
-  ];
-
-  // =========================
-  // 검색 필터
-  // =========================
   const filteredVideos = videos.filter((video) => {
     const keyword = search.trim().toLowerCase();
 
-    if (!keyword) {
-      return true;
-    }
+    if (!keyword) return true;
 
     const title = video.title?.toLowerCase() || "";
 
@@ -191,316 +113,160 @@ function Home({ onSelectVideo }) {
   });
 
   return (
-    <div>
-      <h1>영상 탐색</h1>
+    <div className="xten-home-final">
+      {/* HERO */}
+      <section className="xten-home-final-hero">
+        <div>
+          <span>XTEN</span>
 
-      {/* =========================
-          검색
-      ========================= */}
-      <div style={styles.searchArea}>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={handleSearchKeyDown}
-          placeholder="영상 제목, 설명, 태그 검색"
-          style={styles.searchInput}
-        />
+          <h1>
+            콘텐츠를
+            <br />
+            찾아보세요<span>.</span>
+          </h1>
 
-        <button onClick={() => handleSearch()} style={styles.searchButton}>
-          검색
-        </button>
-      </div>
-
-      {/* =========================
-          검색 기록
-      ========================= */}
-      {uniqueHistory.length > 0 && (
-        <div style={styles.historyBox}>
-          <div style={styles.historyHeader}>
-            <strong>최근 검색</strong>
-
-            <button onClick={clearSearchHistory} style={styles.clearButton}>
-              전체 삭제
-            </button>
-          </div>
-
-          <div style={styles.historyList}>
-            {uniqueHistory.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => handleHistoryClick(item.query)}
-                style={styles.historyItem}
-              >
-                🔍 {item.query}
-              </button>
-            ))}
-          </div>
+          <p>영상과 이미지를 한곳에서 둘러보세요.</p>
         </div>
-      )}
+      </section>
 
-      {/* =========================
-          카테고리
-      ========================= */}
-      <div style={styles.categoryArea}>
+      {/* SEARCH */}
+      <section className="xten-home-final-search">
+        <div className="xten-home-final-search-inner">
+          <span>⌕</span>
+
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="영상 검색"
+          />
+
+          {search && (
+            <button type="button" onClick={() => setSearch("")}>
+              ×
+            </button>
+          )}
+        </div>
+      </section>
+
+      {/* CATEGORY */}
+      <section className="xten-home-final-categories">
         {categories.map((item) => (
           <button
             key={item}
+            type="button"
+            className={category === item ? "active" : ""}
             onClick={() => setCategory(item)}
-            style={{
-              ...styles.categoryButton,
-              ...(category === item ? styles.activeCategory : {}),
-            }}
           >
             {item}
           </button>
         ))}
-      </div>
+      </section>
 
-      {/* =========================
-          정렬
-      ========================= */}
-      <div style={styles.sortArea}>
-        <span>정렬:</span>
+      {/* VIDEO SECTION */}
+      <section className="xten-home-final-section">
+        <div className="xten-home-final-section-head">
+          <div>
+            <span>VIDEO</span>
+            <h2>영상</h2>
+          </div>
 
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-          style={styles.sortSelect}
-        >
-          <option value="latest">최신순</option>
-          <option value="popular">인기순</option>
-          <option value="views">조회수순</option>
-        </select>
-      </div>
+          <select value={sort} onChange={(e) => setSort(e.target.value)}>
+            <option value="latest">최신순</option>
 
-      {/* =========================
-          영상 목록
-      ========================= */}
-      {loading ? (
-        <h2>영상 불러오는 중...</h2>
-      ) : filteredVideos.length === 0 ? (
-        <div style={styles.empty}>
-          <h2>영상이 없습니다.</h2>
-          <p>검색어나 카테고리를 바꿔보세요.</p>
+            <option value="popular">인기순</option>
+
+            <option value="views">조회수순</option>
+          </select>
         </div>
-      ) : (
-        <div style={styles.grid}>
-          {filteredVideos.map((video) => (
-            <div
-              key={video.id}
-              style={styles.card}
-              onClick={() => onSelectVideo(video.id)}
-            >
-              {video.thumbnail_url ? (
-                <img
-                  src={video.thumbnail_url}
-                  alt={video.title}
-                  style={styles.thumbnail}
-                />
-              ) : (
-                <div style={styles.noThumbnail}>썸네일 없음</div>
-              )}
 
-              <div style={styles.info}>
-                <h3 style={styles.title}>{video.title}</h3>
+        {loadingVideos ? (
+          <div className="xten-home-final-loading">
+            <div className="xten-spinner" />
+          </div>
+        ) : filteredVideos.length === 0 ? (
+          <div className="xten-home-final-empty">영상이 없습니다.</div>
+        ) : (
+          <div className="xten-home-final-video-grid">
+            {filteredVideos.map((video) => (
+              <article
+                key={video.id}
+                className="xten-home-final-video-card"
+                onClick={() => onSelectVideo(video.id)}
+              >
+                <div className="xten-home-final-video-thumb">
+                  {video.thumbnail_url ? (
+                    <img src={video.thumbnail_url} alt={video.title} />
+                  ) : (
+                    <div>▶</div>
+                  )}
+                </div>
 
-                <p style={styles.description}>
-                  {video.description || "설명 없음"}
-                </p>
+                <div className="xten-home-final-video-info">
+                  <span>{video.category}</span>
 
-                <p style={styles.meta}>
-                  {video.category}
-                  {" · "}
-                  조회수 {video.views || 0}
-                  {" · "}
-                  👍 {video.likes_count || 0}
-                </p>
+                  <h3>{video.title}</h3>
 
-                {video.tags?.length > 0 && (
-                  <div style={styles.tags}>
-                    {video.tags.map((tag) => (
-                      <span key={tag} style={styles.tag}>
-                        #{tag}
-                      </span>
-                    ))}
+                  <p>
+                    조회수 {video.views || 0}
+                    {" · "}
+                    좋아요 {video.likes_count || 0}
+                  </p>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* IMAGE SECTION */}
+      <section className="xten-home-final-section xten-home-final-images">
+        <div className="xten-home-final-section-head">
+          <div>
+            <span>IMAGE</span>
+            <h2>이미지</h2>
+          </div>
+
+          <span className="xten-home-final-count">{images.length}개</span>
+        </div>
+
+        {loadingImages ? (
+          <div className="xten-home-final-loading">
+            <div className="xten-spinner" />
+          </div>
+        ) : images.length === 0 ? (
+          <div className="xten-home-final-empty">이미지가 없습니다.</div>
+        ) : (
+          <div className="xten-home-final-image-grid">
+            {images.map((image) => {
+              const imageUrl = image.image_url || image.url || image.imageUrl;
+
+              return (
+                <article
+                  key={image.id}
+                  className="xten-home-final-image-card"
+                  onClick={() => onSelectImage(image.id)}
+                >
+                  <div className="xten-home-final-image-thumb">
+                    {imageUrl ? (
+                      <img src={imageUrl} alt={image.title || "이미지"} />
+                    ) : (
+                      <div>IMAGE</div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+
+                  <div className="xten-home-final-image-info">
+                    <h3>{image.title || "제목 없음"}</h3>
+
+                    {image.description && <p>{image.description}</p>}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
-
-const styles = {
-  searchArea: {
-    display: "flex",
-    gap: "10px",
-    marginTop: "20px",
-  },
-
-  searchInput: {
-    flex: 1,
-    padding: "13px",
-    border: "1px solid #ddd",
-    borderRadius: "8px",
-    fontSize: "15px",
-    boxSizing: "border-box",
-  },
-
-  searchButton: {
-    border: "none",
-    backgroundColor: "#111",
-    color: "#fff",
-    padding: "0 20px",
-    borderRadius: "8px",
-    cursor: "pointer",
-  },
-
-  historyBox: {
-    marginTop: "15px",
-    padding: "15px",
-    backgroundColor: "#fff",
-    borderRadius: "10px",
-    border: "1px solid #eee",
-  },
-
-  historyHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-
-  clearButton: {
-    border: "none",
-    background: "transparent",
-    color: "#888",
-    cursor: "pointer",
-    fontSize: "13px",
-  },
-
-  historyList: {
-    display: "flex",
-    gap: "8px",
-    flexWrap: "wrap",
-    marginTop: "12px",
-  },
-
-  historyItem: {
-    border: "1px solid #ddd",
-    backgroundColor: "#fff",
-    padding: "7px 10px",
-    borderRadius: "20px",
-    cursor: "pointer",
-  },
-
-  categoryArea: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "8px",
-    marginTop: "20px",
-  },
-
-  categoryButton: {
-    border: "1px solid #ddd",
-    backgroundColor: "#fff",
-    padding: "8px 14px",
-    borderRadius: "20px",
-    cursor: "pointer",
-  },
-
-  activeCategory: {
-    backgroundColor: "#111",
-    color: "#fff",
-    borderColor: "#111",
-  },
-
-  sortArea: {
-    marginTop: "25px",
-    display: "flex",
-    gap: "10px",
-    alignItems: "center",
-  },
-
-  sortSelect: {
-    padding: "8px 12px",
-    border: "1px solid #ddd",
-    borderRadius: "8px",
-  },
-
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-    gap: "24px",
-    marginTop: "25px",
-  },
-
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: "12px",
-    overflow: "hidden",
-    cursor: "pointer",
-    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.06)",
-  },
-
-  thumbnail: {
-    width: "100%",
-    aspectRatio: "16 / 9",
-    objectFit: "cover",
-    display: "block",
-  },
-
-  noThumbnail: {
-    width: "100%",
-    aspectRatio: "16 / 9",
-    backgroundColor: "#ddd",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "#777",
-  },
-
-  info: {
-    padding: "16px",
-  },
-
-  title: {
-    margin: 0,
-  },
-
-  description: {
-    color: "#666",
-    fontSize: "14px",
-  },
-
-  meta: {
-    color: "#888",
-    fontSize: "13px",
-  },
-
-  tags: {
-    display: "flex",
-    gap: "5px",
-    flexWrap: "wrap",
-    marginTop: "10px",
-  },
-
-  tag: {
-    fontSize: "12px",
-    color: "#555",
-    backgroundColor: "#f1f1f1",
-    padding: "4px 7px",
-    borderRadius: "12px",
-  },
-
-  empty: {
-    textAlign: "center",
-    padding: "80px 20px",
-    color: "#777",
-  },
-};
 
 export default Home;

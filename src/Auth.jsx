@@ -15,8 +15,6 @@ function Auth() {
 
   const [loading, setLoading] = useState(false);
 
-  // 이메일 인증 후 / 비밀번호 재설정 링크로
-  // 돌아왔는지 확인
   useEffect(() => {
     const {
       data: { subscription },
@@ -42,9 +40,6 @@ function Auth() {
     setErrorMessage("");
   };
 
-  // =========================
-  // 로그인
-  // =========================
   const handleLogin = async (e) => {
     e.preventDefault();
 
@@ -63,8 +58,6 @@ function Auth() {
     });
 
     if (error) {
-      console.error("로그인 오류:", error);
-
       setErrorMessage(
         error.message === "Email not confirmed"
           ? "이메일 인증을 먼저 완료해주세요."
@@ -79,9 +72,6 @@ function Auth() {
     setLoading(false);
   };
 
-  // =========================
-  // 회원가입
-  // =========================
   const handleSignUp = async (e) => {
     e.preventDefault();
 
@@ -105,8 +95,6 @@ function Auth() {
     });
 
     if (error) {
-      console.error("회원가입 오류:", error);
-
       setErrorMessage(error.message);
       setLoading(false);
       return;
@@ -117,9 +105,6 @@ function Auth() {
     setLoading(false);
   };
 
-  // =========================
-  // 비밀번호 재설정 이메일
-  // =========================
   const handleResetRequest = async (e) => {
     e.preventDefault();
 
@@ -139,8 +124,6 @@ function Auth() {
     });
 
     if (error) {
-      console.error("비밀번호 재설정 요청 오류:", error);
-
       setErrorMessage(error.message || "재설정 이메일을 보내지 못했습니다.");
 
       setLoading(false);
@@ -152,9 +135,6 @@ function Auth() {
     setLoading(false);
   };
 
-  // =========================
-  // 새 비밀번호 설정
-  // =========================
   const handleNewPassword = async (e) => {
     e.preventDefault();
 
@@ -182,8 +162,6 @@ function Auth() {
     });
 
     if (error) {
-      console.error("비밀번호 변경 오류:", error);
-
       setErrorMessage(error.message || "비밀번호 변경에 실패했습니다.");
 
       setLoading(false);
@@ -193,328 +171,233 @@ function Auth() {
     setNewPassword("");
     setConfirmPassword("");
 
-    setMessage("비밀번호가 변경되었습니다. 다시 로그인해주세요.");
-
     await supabase.auth.signOut();
+
+    setMessage("비밀번호가 변경되었습니다. 다시 로그인해주세요.");
 
     setMode("login");
     setLoading(false);
   };
 
-  // =========================
-  // 로그인 화면
-  // =========================
-  const renderLogin = () => {
-    return (
-      <>
+  const renderLogin = () => (
+    <>
+      <div className="xten-auth-brand">
+        <div className="xten-auth-logo">
+          Xten<span>.</span>
+        </div>
+
+        <p>영상과 콘텐츠를 즐기는 공간</p>
+      </div>
+
+      <div className="xten-auth-heading">
+        <span>WELCOME BACK</span>
         <h1>로그인</h1>
+        <p>계정에 로그인하여 Xten을 이용하세요.</p>
+      </div>
 
-        <form onSubmit={handleLogin}>
-          <div style={styles.field}>
-            <label style={styles.label}>이메일</label>
-
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="이메일"
-              style={styles.input}
-            />
-          </div>
-
-          <div style={styles.field}>
-            <label style={styles.label}>비밀번호</label>
-
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="비밀번호"
-              style={styles.input}
-            />
-          </div>
-
-          <button type="submit" disabled={loading} style={styles.primaryButton}>
-            {loading ? "로그인 중..." : "로그인"}
-          </button>
-        </form>
-
-        <div style={styles.links}>
-          <button
-            onClick={() => {
-              clearMessages();
-              setMode("signup");
-            }}
-            style={styles.linkButton}
-          >
-            회원가입
-          </button>
-
-          <button
-            onClick={() => {
-              clearMessages();
-              setMode("resetRequest");
-            }}
-            style={styles.linkButton}
-          >
-            비밀번호 찾기
-          </button>
+      <form onSubmit={handleLogin} className="xten-auth-form">
+        <div className="xten-field">
+          <label>이메일</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="이메일을 입력하세요"
+            className="xten-input"
+          />
         </div>
-      </>
-    );
-  };
 
-  // =========================
-  // 회원가입 화면
-  // =========================
-  const renderSignup = () => {
-    return (
-      <>
+        <div className="xten-field">
+          <label>비밀번호</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="비밀번호를 입력하세요"
+            className="xten-input"
+          />
+        </div>
+
+        <button type="submit" disabled={loading} className="xten-auth-submit">
+          {loading ? "로그인 중..." : "로그인"}
+        </button>
+      </form>
+
+      <div className="xten-auth-links">
+        <button
+          type="button"
+          onClick={() => {
+            clearMessages();
+            setMode("signup");
+          }}
+        >
+          회원가입
+        </button>
+
+        <span>·</span>
+
+        <button
+          type="button"
+          onClick={() => {
+            clearMessages();
+            setMode("resetRequest");
+          }}
+        >
+          비밀번호 찾기
+        </button>
+      </div>
+    </>
+  );
+
+  const renderSignup = () => (
+    <>
+      <div className="xten-auth-heading">
+        <span>JOIN XTEN</span>
         <h1>회원가입</h1>
+        <p>Xten 계정을 만들어보세요.</p>
+      </div>
 
-        <form onSubmit={handleSignUp}>
-          <div style={styles.field}>
-            <label style={styles.label}>이메일</label>
-
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="이메일"
-              style={styles.input}
-            />
-          </div>
-
-          <div style={styles.field}>
-            <label style={styles.label}>비밀번호</label>
-
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="6자 이상"
-              style={styles.input}
-            />
-          </div>
-
-          <button type="submit" disabled={loading} style={styles.primaryButton}>
-            {loading ? "가입 중..." : "회원가입"}
-          </button>
-        </form>
-
-        <div style={styles.links}>
-          <button
-            onClick={() => {
-              clearMessages();
-              setMode("login");
-            }}
-            style={styles.linkButton}
-          >
-            로그인으로 돌아가기
-          </button>
+      <form onSubmit={handleSignUp} className="xten-auth-form">
+        <div className="xten-field">
+          <label>이메일</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="이메일을 입력하세요"
+            className="xten-input"
+          />
         </div>
 
-        <p style={styles.helpText}>
-          가입 후 입력한 이메일로 인증 메일이 전송됩니다.
-        </p>
-      </>
-    );
-  };
+        <div className="xten-field">
+          <label>비밀번호</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="6자 이상"
+            className="xten-input"
+          />
+        </div>
 
-  // =========================
-  // 비밀번호 찾기
-  // =========================
-  const renderResetRequest = () => {
-    return (
-      <>
+        <button type="submit" disabled={loading} className="xten-auth-submit">
+          {loading ? "가입 중..." : "회원가입"}
+        </button>
+      </form>
+
+      <div className="xten-auth-back">
+        <button
+          type="button"
+          onClick={() => {
+            clearMessages();
+            setMode("login");
+          }}
+        >
+          로그인으로 돌아가기
+        </button>
+      </div>
+
+      <p className="xten-auth-help">
+        가입 후 입력한 이메일로 인증 메일이 전송됩니다.
+      </p>
+    </>
+  );
+
+  const renderResetRequest = () => (
+    <>
+      <div className="xten-auth-heading">
+        <span>ACCOUNT</span>
         <h1>비밀번호 찾기</h1>
+        <p>가입한 이메일을 입력하면 비밀번호 재설정 링크를 보내드립니다.</p>
+      </div>
 
-        <p style={styles.helpText}>
-          가입한 이메일을 입력하면 비밀번호 재설정 링크를 보내드립니다.
-        </p>
-
-        <form onSubmit={handleResetRequest}>
-          <div style={styles.field}>
-            <label style={styles.label}>이메일</label>
-
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="가입한 이메일"
-              style={styles.input}
-            />
-          </div>
-
-          <button type="submit" disabled={loading} style={styles.primaryButton}>
-            {loading ? "전송 중..." : "재설정 이메일 보내기"}
-          </button>
-        </form>
-
-        <div style={styles.links}>
-          <button
-            onClick={() => {
-              clearMessages();
-              setMode("login");
-            }}
-            style={styles.linkButton}
-          >
-            로그인으로 돌아가기
-          </button>
+      <form onSubmit={handleResetRequest} className="xten-auth-form">
+        <div className="xten-field">
+          <label>이메일</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="가입한 이메일"
+            className="xten-input"
+          />
         </div>
-      </>
-    );
-  };
 
-  // =========================
-  // 새 비밀번호
-  // =========================
-  const renderResetPassword = () => {
-    return (
-      <>
-        <h1>새 비밀번호 설정</h1>
+        <button type="submit" disabled={loading} className="xten-auth-submit">
+          {loading ? "전송 중..." : "재설정 이메일 보내기"}
+        </button>
+      </form>
 
-        <form onSubmit={handleNewPassword}>
-          <div style={styles.field}>
-            <label style={styles.label}>새 비밀번호</label>
+      <div className="xten-auth-back">
+        <button
+          type="button"
+          onClick={() => {
+            clearMessages();
+            setMode("login");
+          }}
+        >
+          로그인으로 돌아가기
+        </button>
+      </div>
+    </>
+  );
 
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="6자 이상"
-              style={styles.input}
-            />
-          </div>
+  const renderResetPassword = () => (
+    <>
+      <div className="xten-auth-heading">
+        <span>SECURITY</span>
+        <h1>새 비밀번호</h1>
+        <p>새롭게 사용할 비밀번호를 설정하세요.</p>
+      </div>
 
-          <div style={styles.field}>
-            <label style={styles.label}>새 비밀번호 확인</label>
+      <form onSubmit={handleNewPassword} className="xten-auth-form">
+        <div className="xten-field">
+          <label>새 비밀번호</label>
 
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="새 비밀번호 다시 입력"
-              style={styles.input}
-            />
-          </div>
+          <input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="6자 이상"
+            className="xten-input"
+          />
+        </div>
 
-          <button type="submit" disabled={loading} style={styles.primaryButton}>
-            {loading ? "변경 중..." : "비밀번호 변경"}
-          </button>
-        </form>
-      </>
-    );
-  };
+        <div className="xten-field">
+          <label>새 비밀번호 확인</label>
+
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="새 비밀번호 다시 입력"
+            className="xten-input"
+          />
+        </div>
+
+        <button type="submit" disabled={loading} className="xten-auth-submit">
+          {loading ? "변경 중..." : "비밀번호 변경"}
+        </button>
+      </form>
+    </>
+  );
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
+    <div className="xten-auth-page">
+      <div className="xten-auth-glow" />
+
+      <div className="xten-auth-card">
         {mode === "login" && renderLogin()}
-
         {mode === "signup" && renderSignup()}
-
         {mode === "resetRequest" && renderResetRequest()}
-
         {mode === "resetPassword" && renderResetPassword()}
 
-        {message && <div style={styles.success}>{message}</div>}
+        {message && <div className="xten-success">{message}</div>}
 
-        {errorMessage && <div style={styles.error}>{errorMessage}</div>}
+        {errorMessage && <div className="xten-error">{errorMessage}</div>}
       </div>
     </div>
   );
 }
-
-const styles = {
-  container: {
-    minHeight: "100vh",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f5f5f5",
-    padding: "20px",
-    boxSizing: "border-box",
-  },
-
-  card: {
-    width: "100%",
-    maxWidth: "420px",
-    backgroundColor: "#fff",
-    padding: "30px",
-    borderRadius: "12px",
-    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
-    boxSizing: "border-box",
-  },
-
-  field: {
-    marginBottom: "18px",
-  },
-
-  label: {
-    display: "block",
-    marginBottom: "8px",
-    fontWeight: "600",
-  },
-
-  input: {
-    width: "100%",
-    padding: "12px",
-    border: "1px solid #ddd",
-    borderRadius: "8px",
-    boxSizing: "border-box",
-    fontSize: "15px",
-  },
-
-  primaryButton: {
-    width: "100%",
-    padding: "13px",
-    border: "none",
-    backgroundColor: "#111",
-    color: "#fff",
-    borderRadius: "8px",
-    cursor: "pointer",
-    fontSize: "15px",
-  },
-
-  links: {
-    display: "flex",
-    justifyContent: "center",
-    gap: "15px",
-    marginTop: "18px",
-  },
-
-  linkButton: {
-    border: "none",
-    backgroundColor: "transparent",
-    color: "#555",
-    cursor: "pointer",
-    padding: "5px",
-  },
-
-  helpText: {
-    color: "#777",
-    fontSize: "13px",
-    lineHeight: "1.5",
-  },
-
-  success: {
-    marginTop: "18px",
-    padding: "12px",
-    backgroundColor: "#eef8ee",
-    color: "#267326",
-    borderRadius: "8px",
-    fontSize: "14px",
-  },
-
-  error: {
-    marginTop: "18px",
-    padding: "12px",
-    backgroundColor: "#fff0f0",
-    color: "#c00",
-    borderRadius: "8px",
-    fontSize: "14px",
-  },
-};
 
 export default Auth;

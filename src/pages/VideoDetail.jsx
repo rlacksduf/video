@@ -5,34 +5,26 @@ function VideoDetail({ videoId, onBack }) {
   const [video, setVideo] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 영상 좋아요 / 저장
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
 
-  // 댓글
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
 
-  // 대댓글
   const [replyTarget, setReplyTarget] = useState(null);
   const [replyText, setReplyText] = useState("");
   const [replyLoading, setReplyLoading] = useState(false);
 
-  // 댓글 좋아요
   const [commentLikes, setCommentLikes] = useState({});
   const [likedComments, setLikedComments] = useState({});
 
-  // 이어보기
   const [resumeTime, setResumeTime] = useState(0);
-
-  // 영상
-  const videoRef = useRef(null);
 
   const [message, setMessage] = useState("");
 
-  // 시청 기록 저장 타이머
+  const videoRef = useRef(null);
   const saveTimerRef = useRef(null);
 
   useEffect(() => {
@@ -46,9 +38,6 @@ function VideoDetail({ videoId, onBack }) {
     };
   }, [videoId]);
 
-  // ==================================================
-  // 영상 불러오기
-  // ==================================================
   const loadVideo = async () => {
     setLoading(true);
     setMessage("");
@@ -64,7 +53,6 @@ function VideoDetail({ videoId, onBack }) {
       .single();
 
     if (error) {
-      console.error("영상 조회 오류:", error);
       setMessage("영상을 불러오지 못했습니다.");
       setLoading(false);
       return;
@@ -73,91 +61,61 @@ function VideoDetail({ videoId, onBack }) {
     setVideo(data);
     setLikeCount(data.likes_count || 0);
 
-    // --------------------------------
-    // 좋아요 / 저장 상태
-    // --------------------------------
     if (user) {
-      const { data: likeData, error: likeError } = await supabase
+      const { data: likeData } = await supabase
         .from("video_likes")
         .select("video_id")
         .eq("user_id", user.id)
         .eq("video_id", videoId)
         .maybeSingle();
 
-      if (likeError) {
-        console.error("좋아요 조회 오류:", likeError);
-      }
-
       setLiked(!!likeData);
 
-      const { data: savedData, error: savedError } = await supabase
+      const { data: savedData } = await supabase
         .from("saved_videos")
         .select("video_id")
         .eq("user_id", user.id)
         .eq("video_id", videoId)
         .maybeSingle();
 
-      if (savedError) {
-        console.error("저장 조회 오류:", savedError);
-      }
-
       setSaved(!!savedData);
 
-      // --------------------------------
-      // 시청 기록 불러오기
-      // --------------------------------
-      const { data: historyData, error: historyError } = await supabase
+      const { data: historyData } = await supabase
         .from("watch_history")
         .select("progress_seconds")
         .eq("user_id", user.id)
         .eq("video_id", videoId)
         .maybeSingle();
 
-      if (historyError) {
-        console.error("시청 기록 조회 오류:", historyError);
-      }
-
-      if (historyData) {
-        setResumeTime(Number(historyData.progress_seconds) || 0);
-      } else {
-        setResumeTime(0);
-      }
+      setResumeTime(
+        historyData ? Number(historyData.progress_seconds) || 0 : 0,
+      );
     }
 
-    // --------------------------------
-    // 조회수 증가
-    // --------------------------------
-    const { error: viewError } = await supabase
+    await supabase
       .from("videos")
       .update({
         views: (data.views || 0) + 1,
       })
       .eq("id", videoId);
 
-    if (viewError) {
-      console.error("조회수 증가 오류:", viewError);
-    }
-
     setLoading(false);
   };
 
-  // ==================================================
-  // 영상 메타데이터 로드
-  // ==================================================
   const handleVideoLoaded = () => {
-    const videoElement = videoRef.current;
+    const element = videoRef.current;
 
-    if (!videoElement) return;
+    if (!element) return;
 
-    // 저장된 위치가 영상 범위를 벗어나지 않는 경우에만 이동
-    if (resumeTime > 0 && resumeTime < videoElement.duration - 3) {
-      videoElement.currentTime = resumeTime;
+    if (
+      resumeTime > 0 &&
+      Number.isFinite(element.duration) &&
+      resumeTime < element.duration - 3
+    ) {
+      element.currentTime = resumeTime;
     }
   };
 
-  // ==================================================
-  // 시청 위치 저장
-  // ==================================================
   const saveWatchProgress = async (currentTime) => {
     const {
       data: { user },
@@ -167,7 +125,7 @@ function VideoDetail({ videoId, onBack }) {
 
     if (!Number.isFinite(currentTime)) return;
 
-    const { error } = await supabase.from("watch_history").upsert(
+    await supabase.from("watch_history").upsert(
       {
         user_id: user.id,
         video_id: videoId,
@@ -178,32 +136,20 @@ function VideoDetail({ videoId, onBack }) {
         onConflict: "user_id,video_id",
       },
     );
-
-    if (error) {
-      console.error("시청 기록 저장 오류:", error);
-    }
   };
 
-  // ==================================================
-  // 영상 시간 변경
-  // ==================================================
   const handleTimeUpdate = (e) => {
     const currentTime = e.currentTarget.currentTime;
 
-    // 기존 타이머 제거
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
     }
 
-    // 마지막 저장 후 약 5초 뒤 저장
     saveTimerRef.current = setTimeout(() => {
       saveWatchProgress(currentTime);
     }, 5000);
   };
 
-  // ==================================================
-  // 영상 종료
-  // ==================================================
   const handleVideoEnded = async () => {
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
@@ -213,24 +159,15 @@ function VideoDetail({ videoId, onBack }) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user || !video) return;
+    if (!user) return;
 
-    // 끝까지 봤으면 기록 삭제
-    // 다시 들어왔을 때 처음부터 볼 수 있도록
-    const { error } = await supabase
+    await supabase
       .from("watch_history")
       .delete()
       .eq("user_id", user.id)
       .eq("video_id", videoId);
-
-    if (error) {
-      console.error("시청 기록 삭제 오류:", error);
-    }
   };
 
-  // ==================================================
-  // 영상 좋아요
-  // ==================================================
   const handleLike = async () => {
     const {
       data: { user },
@@ -248,24 +185,16 @@ function VideoDetail({ videoId, onBack }) {
         .eq("user_id", user.id)
         .eq("video_id", videoId);
 
-      if (error) {
-        console.error("좋아요 취소 오류:", error);
-        return;
-      }
+      if (error) return;
 
       const newCount = Math.max(0, likeCount - 1);
 
-      const { error: videoError } = await supabase
+      await supabase
         .from("videos")
         .update({
           likes_count: newCount,
         })
         .eq("id", videoId);
-
-      if (videoError) {
-        console.error("좋아요 수 업데이트 오류:", videoError);
-        return;
-      }
 
       setLiked(false);
       setLikeCount(newCount);
@@ -275,33 +204,22 @@ function VideoDetail({ videoId, onBack }) {
         video_id: videoId,
       });
 
-      if (error) {
-        console.error("좋아요 오류:", error);
-        return;
-      }
+      if (error) return;
 
       const newCount = likeCount + 1;
 
-      const { error: videoError } = await supabase
+      await supabase
         .from("videos")
         .update({
           likes_count: newCount,
         })
         .eq("id", videoId);
 
-      if (videoError) {
-        console.error("좋아요 수 업데이트 오류:", videoError);
-        return;
-      }
-
       setLiked(true);
       setLikeCount(newCount);
     }
   };
 
-  // ==================================================
-  // 영상 저장
-  // ==================================================
   const handleSave = async () => {
     const {
       data: { user },
@@ -313,38 +231,25 @@ function VideoDetail({ videoId, onBack }) {
     }
 
     if (saved) {
-      const { error } = await supabase
+      await supabase
         .from("saved_videos")
         .delete()
         .eq("user_id", user.id)
         .eq("video_id", videoId);
 
-      if (error) {
-        console.error("저장 취소 오류:", error);
-        return;
-      }
-
       setSaved(false);
     } else {
-      const { error } = await supabase.from("saved_videos").insert({
+      await supabase.from("saved_videos").insert({
         user_id: user.id,
         video_id: videoId,
       });
-
-      if (error) {
-        console.error("저장 오류:", error);
-        return;
-      }
 
       setSaved(true);
     }
   };
 
-  // ==================================================
-  // 댓글 불러오기
-  // ==================================================
   const loadComments = async () => {
-    const { data: commentData, error: commentError } = await supabase
+    const { data, error } = await supabase
       .from("comments")
       .select("*")
       .eq("video_id", videoId)
@@ -352,31 +257,24 @@ function VideoDetail({ videoId, onBack }) {
         ascending: true,
       });
 
-    if (commentError) {
-      console.error("댓글 조회 오류:", commentError);
-
+    if (error) {
       setComments([]);
       return;
     }
 
-    if (!commentData || commentData.length === 0) {
+    if (!data?.length) {
       setComments([]);
       setCommentLikes({});
       setLikedComments({});
       return;
     }
 
-    // 댓글 작성자 ID
-    const userIds = [...new Set(commentData.map((comment) => comment.user_id))];
+    const userIds = [...new Set(data.map((item) => item.user_id))];
 
-    const { data: profiles, error: profileError } = await supabase
+    const { data: profiles } = await supabase
       .from("profiles")
       .select("id, display_name, avatar_url")
       .in("id", userIds);
-
-    if (profileError) {
-      console.error("프로필 조회 오류:", profileError);
-    }
 
     const profileMap = {};
 
@@ -384,7 +282,7 @@ function VideoDetail({ videoId, onBack }) {
       profileMap[profile.id] = profile;
     });
 
-    const formattedComments = commentData.map((comment) => ({
+    const formatted = data.map((comment) => ({
       ...comment,
       profiles: profileMap[comment.user_id] || {
         display_name: "사용자",
@@ -392,34 +290,20 @@ function VideoDetail({ videoId, onBack }) {
       },
     }));
 
-    setComments(formattedComments);
+    setComments(formatted);
 
-    // --------------------------------
-    // 댓글 좋아요
-    // --------------------------------
-    const commentIds = formattedComments.map((comment) => comment.id);
+    const commentIds = formatted.map((comment) => comment.id);
 
-    if (commentIds.length === 0) {
-      setCommentLikes({});
-      setLikedComments({});
-      return;
-    }
-
-    const { data: likesData, error: likesError } = await supabase
+    const { data: likesData } = await supabase
       .from("comment_likes")
       .select("user_id, comment_id")
       .in("comment_id", commentIds);
 
-    if (likesError) {
-      console.error("댓글 좋아요 조회 오류:", likesError);
-      return;
-    }
-
-    const likeCountMap = {};
+    const countMap = {};
     const likedMap = {};
 
     (likesData || []).forEach((like) => {
-      likeCountMap[like.comment_id] = (likeCountMap[like.comment_id] || 0) + 1;
+      countMap[like.comment_id] = (countMap[like.comment_id] || 0) + 1;
     });
 
     const {
@@ -434,14 +318,10 @@ function VideoDetail({ videoId, onBack }) {
       });
     }
 
-    setCommentLikes(likeCountMap);
-
+    setCommentLikes(countMap);
     setLikedComments(likedMap);
   };
 
-  // ==================================================
-  // 댓글 작성
-  // ==================================================
   const handleCommentSubmit = async (e) => {
     e.preventDefault();
 
@@ -468,10 +348,7 @@ function VideoDetail({ videoId, onBack }) {
     });
 
     if (error) {
-      console.error("댓글 작성 오류:", error);
-
       setMessage("댓글 작성에 실패했습니다.");
-
       setCommentLoading(false);
       return;
     }
@@ -483,17 +360,12 @@ function VideoDetail({ videoId, onBack }) {
     setCommentLoading(false);
   };
 
-  // ==================================================
-  // 대댓글 작성
-  // ==================================================
   const handleReplySubmit = async (e) => {
     e.preventDefault();
 
     const content = replyText.trim();
 
-    if (!content || !replyTarget) {
-      return;
-    }
+    if (!content || !replyTarget) return;
 
     const {
       data: { user },
@@ -514,11 +386,8 @@ function VideoDetail({ videoId, onBack }) {
     });
 
     if (error) {
-      console.error("대댓글 작성 오류:", error);
-
-      setMessage("대댓글 작성에 실패했습니다.");
-
       setReplyLoading(false);
+      setMessage("대댓글 작성에 실패했습니다.");
       return;
     }
 
@@ -530,9 +399,6 @@ function VideoDetail({ videoId, onBack }) {
     setReplyLoading(false);
   };
 
-  // ==================================================
-  // 댓글 좋아요
-  // ==================================================
   const handleCommentLike = async (commentId) => {
     const {
       data: { user },
@@ -546,16 +412,11 @@ function VideoDetail({ videoId, onBack }) {
     const isLiked = !!likedComments[commentId];
 
     if (isLiked) {
-      const { error } = await supabase
+      await supabase
         .from("comment_likes")
         .delete()
         .eq("user_id", user.id)
         .eq("comment_id", commentId);
-
-      if (error) {
-        console.error("댓글 좋아요 취소 오류:", error);
-        return;
-      }
 
       setLikedComments((prev) => ({
         ...prev,
@@ -567,15 +428,10 @@ function VideoDetail({ videoId, onBack }) {
         [commentId]: Math.max(0, (prev[commentId] || 0) - 1),
       }));
     } else {
-      const { error } = await supabase.from("comment_likes").insert({
+      await supabase.from("comment_likes").insert({
         user_id: user.id,
         comment_id: commentId,
       });
-
-      if (error) {
-        console.error("댓글 좋아요 오류:", error);
-        return;
-      }
 
       setLikedComments((prev) => ({
         ...prev,
@@ -589,9 +445,6 @@ function VideoDetail({ videoId, onBack }) {
     }
   };
 
-  // ==================================================
-  // 댓글 삭제
-  // ==================================================
   const handleCommentDelete = async (commentId) => {
     const {
       data: { user },
@@ -599,539 +452,294 @@ function VideoDetail({ videoId, onBack }) {
 
     if (!user) return;
 
-    const { error } = await supabase
+    await supabase
       .from("comments")
       .delete()
       .eq("id", commentId)
       .eq("user_id", user.id);
 
-    if (error) {
-      console.error("댓글 삭제 오류:", error);
-      return;
-    }
-
     await loadComments();
   };
 
-  // ==================================================
-  // 로딩
-  // ==================================================
   if (loading) {
     return (
-      <div style={styles.center}>
-        <h2>영상 불러오는 중...</h2>
+      <div className="xten-content-loading">
+        <div className="xten-spinner" />
+        <p>영상 불러오는 중...</p>
       </div>
     );
   }
 
   if (!video) {
     return (
-      <div>
-        <p>{message || "영상을 찾을 수 없습니다."}</p>
+      <div className="xten-empty-card">
+        <div className="xten-empty-icon">▶</div>
 
-        <button onClick={onBack}>뒤로가기</button>
+        <h2>{message || "영상을 찾을 수 없습니다."}</h2>
+
+        <button
+          type="button"
+          className="xten-btn xten-btn-primary"
+          onClick={onBack}
+        >
+          돌아가기
+        </button>
       </div>
     );
   }
 
-  // 부모 댓글
   const parentComments = comments.filter(
     (comment) => comment.parent_id === null,
   );
 
-  // 대댓글
-  const getReplies = (parentId) => {
-    return comments.filter((comment) => comment.parent_id === parentId);
-  };
+  const getReplies = (parentId) =>
+    comments.filter((comment) => comment.parent_id === parentId);
 
   return (
-    <div>
-      {/* 뒤로가기 */}
-      <button onClick={onBack} style={styles.backButton}>
+    <div className="xten-detail">
+      <button type="button" onClick={onBack} className="xten-back">
         ← 뒤로가기
       </button>
 
-      {/* ==================================
-          영상
-      ================================== */}
-      <div style={styles.videoBox}>
+      <section className="xten-player">
         <video
           ref={videoRef}
           src={video.video_url}
           controls
           poster={video.thumbnail_url || undefined}
-          style={styles.video}
           onLoadedMetadata={handleVideoLoaded}
           onTimeUpdate={handleTimeUpdate}
           onEnded={handleVideoEnded}
         />
-      </div>
+      </section>
 
-      {/* ==================================
-          영상 정보
-      ================================== */}
-      <div style={styles.content}>
+      <section className="xten-card xten-detail-info">
+        <span className="xten-detail-category">{video.category}</span>
+
         <h1>{video.title}</h1>
 
-        <p style={styles.meta}>
-          조회수 {(video.views || 0) + 1}
-          {" · "}
-          {video.category}
-        </p>
+        <div className="xten-detail-meta">
+          <span>조회수 {(video.views || 0) + 1}</span>
 
-        {/* 좋아요 / 저장 */}
-        <div style={styles.actions}>
+          <span>·</span>
+
+          <span>{video.category}</span>
+        </div>
+
+        <div className="xten-detail-actions">
           <button
+            type="button"
             onClick={handleLike}
-            style={{
-              ...styles.actionButton,
-              ...(liked ? styles.activeButton : {}),
-            }}
+            className={`xten-action-btn ${liked ? "active" : ""}`}
           >
-            👍 {liked ? "좋아요 취소" : "좋아요"} {likeCount}
+            {liked ? "♥" : "♡"}
+            <span>좋아요</span>
+            <b>{likeCount}</b>
           </button>
 
           <button
+            type="button"
             onClick={handleSave}
-            style={{
-              ...styles.actionButton,
-              ...(saved ? styles.activeButton : {}),
-            }}
+            className={`xten-action-btn ${saved ? "active" : ""}`}
           >
-            {saved ? "🔖 저장됨" : "🔖 저장"}
+            {saved ? "🔖" : "▫"}
+            <span>{saved ? "저장됨" : "저장"}</span>
           </button>
         </div>
 
-        {message && <p style={styles.message}>{message}</p>}
+        {message && <div className="xten-detail-message">{message}</div>}
 
-        <hr />
+        <div className="xten-divider" />
 
-        <p style={styles.description}>{video.description || "설명 없음"}</p>
+        <p className="xten-detail-description">
+          {video.description || "설명 없음"}
+        </p>
 
-        {/* 태그 */}
         {video.tags?.length > 0 && (
-          <div style={styles.tags}>
+          <div className="xten-detail-tags">
             {video.tags.map((tag) => (
-              <span key={tag} style={styles.tag}>
-                #{tag}
-              </span>
+              <span key={tag}>#{tag}</span>
             ))}
           </div>
         )}
 
-        {/* 이어보기 표시 */}
         {resumeTime > 0 && (
-          <p style={styles.resumeText}>
-            ▶ 이전 시청 위치 {Math.floor(resumeTime)}
-            초에서 이어봤습니다.
-          </p>
+          <div className="xten-resume">
+            <span>▶</span>
+
+            <p>
+              이전 시청 위치 <b>{Math.floor(resumeTime)}초</b>
+              에서 이어봅니다.
+            </p>
+          </div>
         )}
-      </div>
+      </section>
 
-      {/* ==================================
-          댓글
-      ================================== */}
-      <div style={styles.commentSection}>
-        <h2>댓글 {comments.length}개</h2>
+      <section className="xten-card xten-comments">
+        <div className="xten-comments-title">
+          <div>
+            <span>COMMUNITY</span>
+            <h2>댓글</h2>
+          </div>
 
-        {/* 댓글 작성 */}
-        <form onSubmit={handleCommentSubmit} style={styles.commentForm}>
+          <b>{comments.length}</b>
+        </div>
+
+        <form onSubmit={handleCommentSubmit} className="xten-comment-form">
           <textarea
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
             placeholder="댓글을 입력하세요."
+            className="xten-textarea"
             rows={4}
-            style={styles.commentInput}
           />
 
           <button
             type="submit"
             disabled={commentLoading}
-            style={styles.commentButton}
+            className="xten-btn xten-btn-primary"
           >
             {commentLoading ? "작성 중..." : "댓글 작성"}
           </button>
         </form>
 
-        {/* 댓글 목록 */}
-        <div style={styles.commentList}>
-          {parentComments.length === 0 ? (
-            <p style={styles.emptyComment}>아직 댓글이 없습니다.</p>
-          ) : (
-            parentComments.map((comment) => {
+        {parentComments.length === 0 ? (
+          <div className="xten-comment-empty">
+            <strong>아직 댓글이 없습니다.</strong>
+            <p>첫 번째 댓글을 남겨보세요.</p>
+          </div>
+        ) : (
+          <div className="xten-comment-list">
+            {parentComments.map((comment) => {
               const replies = getReplies(comment.id);
 
               return (
-                <div key={comment.id} style={styles.commentWrapper}>
-                  {/* 부모 댓글 */}
-                  <div style={styles.comment}>
-                    <div style={styles.commentTop}>
-                      <strong>
-                        {comment.profiles?.display_name || "사용자"}
-                      </strong>
+                <div key={comment.id} className="xten-comment-group">
+                  <CommentItem
+                    comment={comment}
+                    liked={!!likedComments[comment.id]}
+                    likes={commentLikes[comment.id] || 0}
+                    onLike={() => handleCommentLike(comment.id)}
+                    onReply={() => {
+                      setReplyTarget(
+                        replyTarget === comment.id ? null : comment.id,
+                      );
+                      setReplyText("");
+                    }}
+                    onDelete={() => handleCommentDelete(comment.id)}
+                  />
 
-                      <span style={styles.commentDate}>
-                        {new Date(comment.created_at).toLocaleString("ko-KR")}
-                      </span>
-                    </div>
+                  {replyTarget === comment.id && (
+                    <form
+                      onSubmit={handleReplySubmit}
+                      className="xten-reply-form"
+                    >
+                      <textarea
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        placeholder="답글을 입력하세요."
+                        rows={2}
+                        className="xten-textarea"
+                      />
 
-                    <p style={styles.commentText}>{comment.content}</p>
+                      <div>
+                        <button
+                          type="submit"
+                          disabled={replyLoading}
+                          className="xten-btn xten-btn-primary"
+                        >
+                          {replyLoading ? "작성 중..." : "답글 작성"}
+                        </button>
 
-                    <div style={styles.commentActions}>
-                      <button
-                        onClick={() => handleCommentLike(comment.id)}
-                        style={{
-                          ...styles.smallButton,
-                          ...(likedComments[comment.id]
-                            ? styles.likedCommentButton
-                            : {}),
-                        }}
-                      >
-                        👍 {commentLikes[comment.id] || 0}
-                      </button>
+                        <button
+                          type="button"
+                          className="xten-btn"
+                          onClick={() => {
+                            setReplyTarget(null);
+                            setReplyText("");
+                          }}
+                        >
+                          취소
+                        </button>
+                      </div>
+                    </form>
+                  )}
 
-                      <button
-                        onClick={() => {
-                          setReplyTarget(
-                            replyTarget === comment.id ? null : comment.id,
-                          );
-                          setReplyText("");
-                        }}
-                        style={styles.smallButton}
-                      >
-                        답글
-                      </button>
-
-                      <button
-                        onClick={() => handleCommentDelete(comment.id)}
-                        style={styles.deleteButton}
-                      >
-                        삭제
-                      </button>
-                    </div>
-
-                    {/* 대댓글 작성 */}
-                    {replyTarget === comment.id && (
-                      <form
-                        onSubmit={handleReplySubmit}
-                        style={styles.replyForm}
-                      >
-                        <textarea
-                          value={replyText}
-                          onChange={(e) => setReplyText(e.target.value)}
-                          placeholder="답글을 입력하세요."
-                          rows={2}
-                          style={styles.replyInput}
-                        />
-
-                        <div>
-                          <button
-                            type="submit"
-                            disabled={replyLoading}
-                            style={styles.replyButton}
-                          >
-                            {replyLoading ? "작성 중..." : "답글 작성"}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setReplyTarget(null);
-                              setReplyText("");
-                            }}
-                            style={styles.cancelButton}
-                          >
-                            취소
-                          </button>
-                        </div>
-                      </form>
-                    )}
-                  </div>
-
-                  {/* 대댓글 */}
                   {replies.length > 0 && (
-                    <div style={styles.replyList}>
+                    <div className="xten-replies">
                       {replies.map((reply) => (
-                        <div key={reply.id} style={styles.reply}>
-                          <div style={styles.commentTop}>
-                            <strong>
-                              {reply.profiles?.display_name || "사용자"}
-                            </strong>
-
-                            <span style={styles.commentDate}>
-                              {new Date(reply.created_at).toLocaleString(
-                                "ko-KR",
-                              )}
-                            </span>
-                          </div>
-
-                          <p style={styles.commentText}>{reply.content}</p>
-
-                          <div style={styles.commentActions}>
-                            <button
-                              onClick={() => handleCommentLike(reply.id)}
-                              style={{
-                                ...styles.smallButton,
-                                ...(likedComments[reply.id]
-                                  ? styles.likedCommentButton
-                                  : {}),
-                              }}
-                            >
-                              👍 {commentLikes[reply.id] || 0}
-                            </button>
-
-                            <button
-                              onClick={() => handleCommentDelete(reply.id)}
-                              style={styles.deleteButton}
-                            >
-                              삭제
-                            </button>
-                          </div>
-                        </div>
+                        <CommentItem
+                          key={reply.id}
+                          comment={reply}
+                          liked={!!likedComments[reply.id]}
+                          likes={commentLikes[reply.id] || 0}
+                          reply
+                          onLike={() => handleCommentLike(reply.id)}
+                          onDelete={() => handleCommentDelete(reply.id)}
+                        />
                       ))}
                     </div>
                   )}
                 </div>
               );
-            })
-          )}
-        </div>
-      </div>
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
 
-const styles = {
-  center: {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    minHeight: "300px",
-  },
+function CommentItem({
+  comment,
+  liked,
+  likes,
+  reply,
+  onLike,
+  onReply,
+  onDelete,
+}) {
+  const displayName = comment.profiles?.display_name || "사용자";
 
-  backButton: {
-    marginBottom: "20px",
-    border: "none",
-    background: "transparent",
-    cursor: "pointer",
-    fontSize: "15px",
-  },
+  return (
+    <article className={`xten-comment ${reply ? "reply" : ""}`}>
+      <div className="xten-comment-head">
+        <div className="xten-comment-user">
+          {comment.profiles?.avatar_url ? (
+            <img src={comment.profiles.avatar_url} alt="" />
+          ) : (
+            <span>{displayName.charAt(0)}</span>
+          )}
 
-  videoBox: {
-    backgroundColor: "#000",
-    borderRadius: "12px",
-    overflow: "hidden",
-  },
+          <strong>{displayName}</strong>
+        </div>
 
-  video: {
-    width: "100%",
-    display: "block",
-    maxHeight: "75vh",
-  },
+        <time>{new Date(comment.created_at).toLocaleString("ko-KR")}</time>
+      </div>
 
-  content: {
-    backgroundColor: "#fff",
-    marginTop: "20px",
-    padding: "24px",
-    borderRadius: "12px",
-  },
+      <p className="xten-comment-text">{comment.content}</p>
 
-  meta: {
-    color: "#777",
-  },
+      <div className="xten-comment-actions">
+        <button
+          type="button"
+          className={liked ? "active" : ""}
+          onClick={onLike}
+        >
+          ♥ {likes}
+        </button>
 
-  actions: {
-    display: "flex",
-    gap: "10px",
-    margin: "20px 0",
-  },
+        {onReply && (
+          <button type="button" onClick={onReply}>
+            답글
+          </button>
+        )}
 
-  actionButton: {
-    border: "1px solid #ddd",
-    backgroundColor: "#fff",
-    padding: "10px 16px",
-    borderRadius: "8px",
-    cursor: "pointer",
-    fontSize: "14px",
-  },
-
-  activeButton: {
-    backgroundColor: "#111",
-    color: "#fff",
-    borderColor: "#111",
-  },
-
-  message: {
-    color: "#d00",
-    marginBottom: "15px",
-  },
-
-  description: {
-    whiteSpace: "pre-wrap",
-    lineHeight: "1.6",
-  },
-
-  tags: {
-    display: "flex",
-    gap: "8px",
-    flexWrap: "wrap",
-    marginTop: "20px",
-  },
-
-  tag: {
-    padding: "6px 10px",
-    backgroundColor: "#eee",
-    borderRadius: "20px",
-    fontSize: "13px",
-  },
-
-  resumeText: {
-    marginTop: "20px",
-    padding: "10px 14px",
-    backgroundColor: "#f5f5f5",
-    borderRadius: "8px",
-    color: "#555",
-    fontSize: "14px",
-  },
-
-  commentSection: {
-    backgroundColor: "#fff",
-    marginTop: "20px",
-    padding: "24px",
-    borderRadius: "12px",
-  },
-
-  commentForm: {
-    marginTop: "20px",
-  },
-
-  commentInput: {
-    width: "100%",
-    padding: "12px",
-    boxSizing: "border-box",
-    border: "1px solid #ddd",
-    borderRadius: "8px",
-    resize: "vertical",
-    fontSize: "14px",
-  },
-
-  commentButton: {
-    marginTop: "10px",
-    padding: "10px 16px",
-    border: "none",
-    backgroundColor: "#111",
-    color: "#fff",
-    borderRadius: "8px",
-    cursor: "pointer",
-  },
-
-  commentList: {
-    marginTop: "30px",
-  },
-
-  commentWrapper: {
-    borderBottom: "1px solid #eee",
-  },
-
-  comment: {
-    padding: "18px 0",
-  },
-
-  commentTop: {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-  },
-
-  commentDate: {
-    color: "#999",
-    fontSize: "12px",
-  },
-
-  commentText: {
-    margin: "10px 0",
-    whiteSpace: "pre-wrap",
-    lineHeight: "1.5",
-  },
-
-  commentActions: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-  },
-
-  smallButton: {
-    border: "none",
-    backgroundColor: "#f3f3f3",
-    padding: "6px 10px",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontSize: "13px",
-  },
-
-  likedCommentButton: {
-    backgroundColor: "#111",
-    color: "#fff",
-  },
-
-  deleteButton: {
-    border: "none",
-    background: "transparent",
-    color: "#999",
-    cursor: "pointer",
-    padding: "6px",
-    fontSize: "13px",
-  },
-
-  replyForm: {
-    marginTop: "12px",
-    paddingLeft: "20px",
-  },
-
-  replyInput: {
-    width: "100%",
-    boxSizing: "border-box",
-    padding: "10px",
-    border: "1px solid #ddd",
-    borderRadius: "8px",
-    resize: "vertical",
-  },
-
-  replyButton: {
-    marginTop: "8px",
-    marginRight: "6px",
-    border: "none",
-    backgroundColor: "#111",
-    color: "#fff",
-    padding: "8px 12px",
-    borderRadius: "6px",
-    cursor: "pointer",
-  },
-
-  cancelButton: {
-    marginTop: "8px",
-    border: "1px solid #ddd",
-    backgroundColor: "#fff",
-    padding: "8px 12px",
-    borderRadius: "6px",
-    cursor: "pointer",
-  },
-
-  replyList: {
-    marginLeft: "25px",
-    borderLeft: "2px solid #eee",
-    paddingLeft: "18px",
-  },
-
-  reply: {
-    padding: "14px 0",
-  },
-
-  emptyComment: {
-    color: "#888",
-    textAlign: "center",
-    padding: "30px 0",
-  },
-};
+        <button type="button" className="danger" onClick={onDelete}>
+          삭제
+        </button>
+      </div>
+    </article>
+  );
+}
 
 export default VideoDetail;
