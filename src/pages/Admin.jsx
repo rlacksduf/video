@@ -1,529 +1,768 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 function Admin() {
-  const [loading, setLoading] = useState(true);
-  const [authorized, setAuthorized] = useState(false);
+  const [tab, setTab] = useState("overview");
 
   const [users, setUsers] = useState([]);
   const [videos, setVideos] = useState([]);
   const [comments, setComments] = useState([]);
+  const [images, setImages] = useState([]);
 
-  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState("users");
+  const [stats, setStats] = useState({
+    users: 0,
+    videos: 0,
+    comments: 0,
+    images: 0,
+  });
 
   useEffect(() => {
-    checkAdmin();
+    loadAll();
   }, []);
 
-  const checkAdmin = async () => {
+  const loadAll = async () => {
     setLoading(true);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setAuthorized(false);
-      setLoading(false);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (error || data?.role !== "admin") {
-      setAuthorized(false);
-      setLoading(false);
-      return;
-    }
-
-    setAuthorized(true);
-
-    await Promise.all([loadUsers(), loadVideos(), loadComments()]);
+    await Promise.all([
+      loadUsers(),
+      loadVideos(),
+      loadComments(),
+      loadImages(),
+    ]);
 
     setLoading(false);
   };
 
   const loadUsers = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("profiles")
       .select("*")
       .order("created_at", {
         ascending: false,
       });
 
+    if (error) {
+      console.error("사용자 조회 오류:", error);
+      setUsers([]);
+      return;
+    }
+
     setUsers(data || []);
+
+    setStats((prev) => ({
+      ...prev,
+      users: data?.length || 0,
+    }));
   };
 
   const loadVideos = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("videos")
       .select("*")
       .order("created_at", {
         ascending: false,
       });
 
+    if (error) {
+      console.error("영상 조회 오류:", error);
+      setVideos([]);
+      return;
+    }
+
     setVideos(data || []);
+
+    setStats((prev) => ({
+      ...prev,
+      videos: data?.length || 0,
+    }));
   };
 
   const loadComments = async () => {
-    const { data: commentData, error } = await supabase
+    const { data, error } = await supabase
       .from("comments")
       .select("*")
       .order("created_at", {
         ascending: false,
       });
 
-    if (error || !commentData?.length) {
+    if (error) {
+      console.error("댓글 조회 오류:", error);
       setComments([]);
       return;
     }
 
-    const userIds = [...new Set(commentData.map((comment) => comment.user_id))];
+    setComments(data || []);
 
-    const videoIds = [
-      ...new Set(commentData.map((comment) => comment.video_id)),
-    ];
-
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, display_name")
-      .in("id", userIds);
-
-    const { data: videoRows } = await supabase
-      .from("videos")
-      .select("id, title")
-      .in("id", videoIds);
-
-    const profileMap = {};
-    const videoMap = {};
-
-    (profiles || []).forEach((profile) => {
-      profileMap[profile.id] = profile;
-    });
-
-    (videoRows || []).forEach((video) => {
-      videoMap[video.id] = video;
-    });
-
-    setComments(
-      commentData.map((comment) => ({
-        ...comment,
-        profile: profileMap[comment.user_id],
-        video: videoMap[comment.video_id],
-      })),
-    );
+    setStats((prev) => ({
+      ...prev,
+      comments: data?.length || 0,
+    }));
   };
 
-  const handleSuspend = async (userId) => {
-    const confirmed = window.confirm("이 사용자를 30일 정지하시겠습니까?");
-
-    if (!confirmed) return;
-
-    const until = new Date();
-    until.setDate(until.getDate() + 30);
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        suspended_until: until.toISOString(),
-      })
-      .eq("id", userId);
+  const loadImages = async () => {
+    const { data, error } = await supabase
+      .from("image_posts")
+      .select("*")
+      .order("created_at", {
+        ascending: false,
+      });
 
     if (error) {
-      setMessage("회원 정지에 실패했습니다.");
+      console.error("이미지 조회 오류:", error);
+      setImages([]);
       return;
     }
 
-    setMessage("회원이 30일 정지되었습니다.");
-    await loadUsers();
+    setImages(data || []);
+
+    setStats((prev) => ({
+      ...prev,
+      images: data?.length || 0,
+    }));
   };
 
-  const handleUnsuspend = async (userId) => {
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        suspended_until: null,
-      })
-      .eq("id", userId);
+  const deleteUser = async (id) => {
+    const ok = window.confirm("이 사용자를 삭제하시겠습니까?");
+
+    if (!ok) return;
+
+    const { error } = await supabase.from("profiles").delete().eq("id", id);
 
     if (error) {
-      setMessage("정지 해제에 실패했습니다.");
+      console.error("사용자 삭제 오류:", error);
+
+      alert("사용자 삭제에 실패했습니다.\n" + error.message);
+
       return;
     }
 
-    setMessage("회원 정지가 해제되었습니다.");
-    await loadUsers();
+    setUsers((prev) => prev.filter((user) => user.id !== id));
+
+    setStats((prev) => ({
+      ...prev,
+      users: Math.max(0, prev.users - 1),
+    }));
   };
 
-  const handleDeleteComment = async (commentId) => {
-    if (!window.confirm("이 댓글을 삭제하시겠습니까?")) {
-      return;
-    }
+  const deleteVideo = async (id) => {
+    const ok = window.confirm("이 영상을 삭제하시겠습니까?");
 
-    const { error } = await supabase
-      .from("comments")
-      .delete()
-      .eq("id", commentId);
-
-    if (error) {
-      setMessage("댓글 삭제에 실패했습니다.");
-      return;
-    }
-
-    setMessage("댓글을 삭제했습니다.");
-    await loadComments();
-  };
-
-  const handleDeleteVideo = async (videoId) => {
-    if (!window.confirm("이 영상을 삭제하시겠습니까?")) {
-      return;
-    }
+    if (!ok) return;
 
     const { error } = await supabase
       .from("videos")
       .update({
         status: "deleted",
       })
-      .eq("id", videoId);
+      .eq("id", id);
 
     if (error) {
-      setMessage("영상 삭제에 실패했습니다.");
+      console.error("영상 삭제 오류:", error);
+
+      alert("영상 삭제에 실패했습니다.\n" + error.message);
+
       return;
     }
 
-    setMessage("영상을 삭제했습니다.");
-    await loadVideos();
+    setVideos((prev) => prev.filter((video) => video.id !== id));
+
+    setStats((prev) => ({
+      ...prev,
+      videos: Math.max(0, prev.videos - 1),
+    }));
   };
 
-  const handleRestoreVideo = async (videoId) => {
-    const { error } = await supabase
-      .from("videos")
-      .update({
-        status: "published",
-      })
-      .eq("id", videoId);
+  const deleteComment = async (id) => {
+    const ok = window.confirm("이 댓글을 삭제하시겠습니까?");
+
+    if (!ok) return;
+
+    const { error } = await supabase.from("comments").delete().eq("id", id);
 
     if (error) {
-      setMessage("영상 복구에 실패했습니다.");
+      console.error("댓글 삭제 오류:", error);
+
+      alert("댓글 삭제에 실패했습니다.\n" + error.message);
+
       return;
     }
 
-    setMessage("영상을 복구했습니다.");
-    await loadVideos();
+    setComments((prev) => prev.filter((comment) => comment.id !== id));
+
+    setStats((prev) => ({
+      ...prev,
+      comments: Math.max(0, prev.comments - 1),
+    }));
   };
+
+  const getImageStoragePath = (url) => {
+    if (!url) return null;
+
+    try {
+      const parsed = new URL(url);
+
+      const marker = "/storage/v1/object/public/images/";
+
+      const index = parsed.pathname.indexOf(marker);
+
+      if (index === -1) {
+        return null;
+      }
+
+      return decodeURIComponent(parsed.pathname.slice(index + marker.length));
+    } catch {
+      return null;
+    }
+  };
+
+  const deleteImage = async (image) => {
+    const ok = window.confirm(
+      `"${image.title || "제목 없음"}" 이미지를 삭제하시겠습니까?\n\n삭제하면 되돌릴 수 없습니다.`,
+    );
+
+    if (!ok) return;
+
+    try {
+      const imageUrl = image.image_url || image.url || image.imageUrl;
+
+      const storagePath = getImageStoragePath(imageUrl);
+
+      if (storagePath) {
+        const { error } = await supabase.storage
+          .from("images")
+          .remove([storagePath]);
+
+        if (error) {
+          console.warn("Storage 이미지 삭제 실패:", error);
+        }
+      }
+
+      const { error: dbError } = await supabase
+        .from("image_posts")
+        .delete()
+        .eq("id", image.id);
+
+      if (dbError) {
+        console.error("이미지 DB 삭제 오류:", dbError);
+
+        alert("이미지 삭제에 실패했습니다.\n" + dbError.message);
+
+        return;
+      }
+
+      setImages((prev) => prev.filter((item) => item.id !== image.id));
+
+      setStats((prev) => ({
+        ...prev,
+        images: Math.max(0, prev.images - 1),
+      }));
+    } catch (error) {
+      console.error("이미지 삭제 오류:", error);
+
+      alert("이미지 삭제 중 오류가 발생했습니다.");
+    }
+  };
+
+  const recentUsers = useMemo(() => users.slice(0, 5), [users]);
+
+  const recentVideos = useMemo(() => videos.slice(0, 5), [videos]);
+
+  const recentImages = useMemo(() => images.slice(0, 6), [images]);
 
   if (loading) {
     return (
-      <div className="xten-content-loading">
-        <div className="xten-spinner" />
-        <p>관리자 확인 중...</p>
+      <div className="xten-admin-v2-loading">
+        <div className="xten-admin-v2-spinner" />
+        <p>관리자 데이터를 불러오는 중...</p>
       </div>
     );
   }
-
-  if (!authorized) {
-    return (
-      <div className="xten-empty-card">
-        <div className="xten-empty-icon">🔒</div>
-
-        <h2>접근 권한 없음</h2>
-
-        <p>관리자 계정만 접근할 수 있습니다.</p>
-      </div>
-    );
-  }
-
-  const suspendedUsers = users.filter(
-    (user) =>
-      user.suspended_until && new Date(user.suspended_until) > new Date(),
-  ).length;
-
-  const deletedVideos = videos.filter(
-    (video) => video.status === "deleted",
-  ).length;
 
   return (
-    <div className="xten-admin">
-      <div className="xten-page-head">
+    <div className="xten-admin-v2">
+      {/* =========================
+          HEADER
+      ========================== */}
+
+      <header className="xten-admin-v2-header">
         <div>
-          <div className="xten-home-kicker">ADMIN PANEL</div>
+          <span className="xten-admin-v2-eyebrow">XTEN ADMIN</span>
 
-          <h1 className="xten-page-title">관리자</h1>
+          <h1>관리자 센터</h1>
 
-          <p className="xten-page-description">Xten 서비스를 관리하세요.</p>
+          <p>서비스의 사용자와 콘텐츠를 관리하세요.</p>
         </div>
-      </div>
 
-      {message && (
-        <div className="xten-success xten-page-message">{message}</div>
-      )}
-
-      <div className="xten-admin-stats">
-        <StatCard label="USERS" value={users.length} sub="전체 회원" icon="●" />
-
-        <StatCard
-          label="VIDEOS"
-          value={videos.length}
-          sub="전체 영상"
-          icon="▶"
-        />
-
-        <StatCard
-          label="COMMENTS"
-          value={comments.length}
-          sub="전체 댓글"
-          icon="◌"
-        />
-
-        <StatCard
-          label="SUSPENDED"
-          value={suspendedUsers}
-          sub="현재 정지 회원"
-          icon="!"
-        />
-      </div>
-
-      <div className="xten-admin-tabs">
         <button
           type="button"
-          className={activeTab === "users" ? "active" : ""}
-          onClick={() => setActiveTab("users")}
+          className="xten-admin-v2-refresh"
+          onClick={loadAll}
         >
-          회원
+          ↻ 새로고침
+        </button>
+      </header>
+
+      {/* =========================
+          STATS
+      ========================== */}
+
+      <section className="xten-admin-v2-stat-grid">
+        <div className="xten-admin-v2-stat-card">
+          <div className="xten-admin-v2-stat-icon">U</div>
+
+          <div>
+            <span>USERS</span>
+            <strong>{stats.users}</strong>
+            <p>전체 사용자</p>
+          </div>
+        </div>
+
+        <div className="xten-admin-v2-stat-card">
+          <div className="xten-admin-v2-stat-icon">V</div>
+
+          <div>
+            <span>VIDEOS</span>
+            <strong>{stats.videos}</strong>
+            <p>전체 영상</p>
+          </div>
+        </div>
+
+        <div className="xten-admin-v2-stat-card">
+          <div className="xten-admin-v2-stat-icon">I</div>
+
+          <div>
+            <span>IMAGES</span>
+            <strong>{stats.images}</strong>
+            <p>전체 이미지</p>
+          </div>
+        </div>
+
+        <div className="xten-admin-v2-stat-card">
+          <div className="xten-admin-v2-stat-icon">C</div>
+
+          <div>
+            <span>COMMENTS</span>
+            <strong>{stats.comments}</strong>
+            <p>전체 댓글</p>
+          </div>
+        </div>
+      </section>
+
+      {/* =========================
+          NAV
+      ========================== */}
+
+      <nav className="xten-admin-v2-tabs">
+        <button
+          type="button"
+          className={tab === "overview" ? "active" : ""}
+          onClick={() => setTab("overview")}
+        >
+          개요
+        </button>
+
+        <button
+          type="button"
+          className={tab === "users" ? "active" : ""}
+          onClick={() => setTab("users")}
+        >
+          사용자
           <span>{users.length}</span>
         </button>
 
         <button
           type="button"
-          className={activeTab === "comments" ? "active" : ""}
-          onClick={() => setActiveTab("comments")}
-        >
-          댓글
-          <span>{comments.length}</span>
-        </button>
-
-        <button
-          type="button"
-          className={activeTab === "videos" ? "active" : ""}
-          onClick={() => setActiveTab("videos")}
+          className={tab === "videos" ? "active" : ""}
+          onClick={() => setTab("videos")}
         >
           영상
           <span>{videos.length}</span>
         </button>
-      </div>
 
-      {activeTab === "users" && (
-        <section className="xten-admin-panel">
-          <div className="xten-panel-heading">
-            <div>
-              <span>MEMBERS</span>
-              <h2>회원 관리</h2>
-            </div>
+        <button
+          type="button"
+          className={tab === "images" ? "active" : ""}
+          onClick={() => setTab("images")}
+        >
+          이미지
+          <span>{images.length}</span>
+        </button>
 
-            <strong>{users.length}명</strong>
-          </div>
+        <button
+          type="button"
+          className={tab === "comments" ? "active" : ""}
+          onClick={() => setTab("comments")}
+        >
+          댓글
+          <span>{comments.length}</span>
+        </button>
+      </nav>
 
-          <div className="xten-admin-users">
-            {users.map((user) => {
-              const suspended =
-                user.suspended_until &&
-                new Date(user.suspended_until) > new Date();
+      {/* =========================
+          OVERVIEW
+      ========================== */}
 
-              return (
-                <article key={user.id} className="xten-admin-user">
-                  <div className="xten-admin-user-main">
-                    <div className="xten-admin-user-avatar">
-                      {user.display_name?.charAt(0) || "U"}
-                    </div>
+      {tab === "overview" && (
+        <section className="xten-admin-v2-overview">
+          <div className="xten-admin-v2-overview-grid">
+            {/* 최근 사용자 */}
 
-                    <div>
-                      <strong>{user.display_name || "사용자"}</strong>
+            <section className="xten-admin-v2-panel">
+              <div className="xten-admin-v2-panel-head">
+                <div>
+                  <span>RECENT USERS</span>
+                  <h2>최근 가입</h2>
+                </div>
 
-                      <p>
-                        가입일{" "}
-                        {user.created_at
-                          ? new Date(user.created_at).toLocaleDateString(
-                              "ko-KR",
-                            )
-                          : "-"}
-                      </p>
+                <button type="button" onClick={() => setTab("users")}>
+                  전체 보기
+                </button>
+              </div>
 
-                      <div className="xten-admin-tags">
-                        <span>{user.role}</span>
+              <div className="xten-admin-v2-user-list">
+                {recentUsers.length === 0 ? (
+                  <div className="xten-admin-v2-empty-small">
+                    사용자가 없습니다.
+                  </div>
+                ) : (
+                  recentUsers.map((user) => (
+                    <div key={user.id} className="xten-admin-v2-user-item">
+                      <div className="xten-admin-v2-user-avatar">
+                        {user.avatar_url ? (
+                          <img src={user.avatar_url} alt="" />
+                        ) : (
+                          (user.display_name || "U").charAt(0).toUpperCase()
+                        )}
+                      </div>
 
-                        {suspended && <span className="danger">정지</span>}
+                      <div className="xten-admin-v2-user-text">
+                        <strong>{user.display_name || "이름 없음"}</strong>
+
+                        <span>{user.role || "user"}</span>
                       </div>
                     </div>
+                  ))
+                )}
+              </div>
+            </section>
+
+            {/* 최근 영상 */}
+
+            <section className="xten-admin-v2-panel">
+              <div className="xten-admin-v2-panel-head">
+                <div>
+                  <span>RECENT VIDEOS</span>
+                  <h2>최근 영상</h2>
+                </div>
+
+                <button type="button" onClick={() => setTab("videos")}>
+                  전체 보기
+                </button>
+              </div>
+
+              <div className="xten-admin-v2-content-list">
+                {recentVideos.length === 0 ? (
+                  <div className="xten-admin-v2-empty-small">
+                    영상이 없습니다.
                   </div>
+                ) : (
+                  recentVideos.map((video) => (
+                    <div key={video.id} className="xten-admin-v2-mini-content">
+                      <div className="xten-admin-v2-mini-thumb">
+                        {video.thumbnail_url ? (
+                          <img src={video.thumbnail_url} alt="" />
+                        ) : (
+                          <span>V</span>
+                        )}
+                      </div>
 
-                  {user.role !== "admin" &&
-                    (suspended ? (
-                      <button
-                        type="button"
-                        className="xten-btn"
-                        onClick={() => handleUnsuspend(user.id)}
-                      >
-                        정지 해제
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="xten-btn danger"
-                        onClick={() => handleSuspend(user.id)}
-                      >
-                        30일 정지
-                      </button>
-                    ))}
-                </article>
-              );
-            })}
-          </div>
-        </section>
-      )}
+                      <div>
+                        <strong>{video.title}</strong>
 
-      {activeTab === "comments" && (
-        <section className="xten-admin-panel">
-          <div className="xten-panel-heading">
-            <div>
-              <span>COMMENTS</span>
-              <h2>댓글 관리</h2>
-            </div>
-
-            <strong>{comments.length}개</strong>
-          </div>
-
-          {comments.length === 0 ? (
-            <div className="xten-admin-empty">댓글이 없습니다.</div>
-          ) : (
-            <div className="xten-admin-comments">
-              {comments.map((comment) => (
-                <article key={comment.id} className="xten-admin-comment">
-                  <div className="xten-comment-user-line">
-                    <span>
-                      {(comment.profile?.display_name || "사용자").charAt(0)}
-                    </span>
-
-                    <div>
-                      <strong>
-                        {comment.profile?.display_name || "사용자"}
-                      </strong>
-
-                      <small>
-                        {new Date(comment.created_at).toLocaleString("ko-KR")}
-                      </small>
+                        <span>
+                          {video.category || "기타"} · 조회수 {video.views || 0}
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  ))
+                )}
+              </div>
+            </section>
+          </div>
 
-                  <p className="xten-admin-comment-text">{comment.content}</p>
+          {/* 최근 이미지 */}
 
-                  <div className="xten-admin-comment-bottom">
-                    <span>{comment.video?.title || "알 수 없는 영상"}</span>
+          <section className="xten-admin-v2-panel">
+            <div className="xten-admin-v2-panel-head">
+              <div>
+                <span>RECENT IMAGES</span>
 
-                    <button
-                      type="button"
-                      className="xten-btn danger"
-                      onClick={() => handleDeleteComment(comment.id)}
-                    >
-                      삭제
-                    </button>
-                  </div>
-                </article>
-              ))}
+                <h2>최근 이미지</h2>
+              </div>
+
+              <button type="button" onClick={() => setTab("images")}>
+                전체 보기
+              </button>
             </div>
-          )}
+
+            {recentImages.length === 0 ? (
+              <div className="xten-admin-v2-empty-small">
+                이미지가 없습니다.
+              </div>
+            ) : (
+              <div className="xten-admin-v2-overview-images">
+                {recentImages.map((image) => {
+                  const imageUrl =
+                    image.image_url || image.url || image.imageUrl;
+
+                  return (
+                    <div
+                      key={image.id}
+                      className="xten-admin-v2-overview-image"
+                    >
+                      {imageUrl ? (
+                        <img src={imageUrl} alt={image.title || "이미지"} />
+                      ) : (
+                        <span>IMAGE</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </section>
       )}
 
-      {activeTab === "videos" && (
-        <section className="xten-admin-panel">
-          <div className="xten-panel-heading">
+      {/* =========================
+          USERS
+      ========================== */}
+
+      {tab === "users" && (
+        <section className="xten-admin-v2-panel">
+          <div className="xten-admin-v2-panel-head">
+            <div>
+              <span>USERS</span>
+              <h2>사용자 관리</h2>
+            </div>
+
+            <strong className="xten-admin-v2-result-count">
+              {users.length}명
+            </strong>
+          </div>
+
+          <div className="xten-admin-v2-list">
+            {users.length === 0 ? (
+              <div className="xten-admin-v2-empty">사용자가 없습니다.</div>
+            ) : (
+              users.map((user) => (
+                <div key={user.id} className="xten-admin-v2-list-row">
+                  <div className="xten-admin-v2-user-avatar">
+                    {user.avatar_url ? (
+                      <img src={user.avatar_url} alt="" />
+                    ) : (
+                      (user.display_name || "U").charAt(0).toUpperCase()
+                    )}
+                  </div>
+
+                  <div className="xten-admin-v2-list-main">
+                    <strong>{user.display_name || "이름 없음"}</strong>
+
+                    <span>{user.role || "user"}</span>
+                  </div>
+
+                  <div className="xten-admin-v2-list-date">
+                    {user.created_at
+                      ? new Date(user.created_at).toLocaleDateString("ko-KR")
+                      : "-"}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="xten-admin-v2-danger-button"
+                    onClick={() => deleteUser(user.id)}
+                  >
+                    삭제
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* =========================
+          VIDEOS
+      ========================== */}
+
+      {tab === "videos" && (
+        <section className="xten-admin-v2-panel">
+          <div className="xten-admin-v2-panel-head">
             <div>
               <span>VIDEOS</span>
               <h2>영상 관리</h2>
             </div>
 
-            <strong>{videos.length}개</strong>
+            <strong className="xten-admin-v2-result-count">
+              {videos.length}개
+            </strong>
           </div>
 
-          <div className="xten-admin-videos">
-            {videos.map((video) => (
-              <article key={video.id} className="xten-admin-video">
-                <div className="xten-admin-video-main">
-                  <div className="xten-admin-video-thumb">
+          <div className="xten-admin-v2-management-grid">
+            {videos.length === 0 ? (
+              <div className="xten-admin-v2-empty">영상이 없습니다.</div>
+            ) : (
+              videos.map((video) => (
+                <article key={video.id} className="xten-admin-v2-media-card">
+                  <div className="xten-admin-v2-media-thumb">
                     {video.thumbnail_url ? (
                       <img src={video.thumbnail_url} alt={video.title} />
                     ) : (
-                      <span>▶</span>
+                      <span>VIDEO</span>
                     )}
-                  </div>
 
-                  <div>
-                    <strong>{video.title}</strong>
-
-                    <p>
-                      {video.category} · 조회수 {video.views || 0}
-                    </p>
-
-                    <div className="xten-admin-tags">
-                      <span
-                        className={
-                          video.status === "deleted" ? "danger" : "success"
-                        }
-                      >
-                        {video.status}
-                      </span>
+                    <div className="xten-admin-v2-media-badge">
+                      {video.category || "기타"}
                     </div>
                   </div>
-                </div>
 
-                {video.status === "deleted" ? (
-                  <button
-                    type="button"
-                    className="xten-btn xten-btn-primary"
-                    onClick={() => handleRestoreVideo(video.id)}
-                  >
-                    복구
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="xten-btn danger"
-                    onClick={() => handleDeleteVideo(video.id)}
-                  >
-                    삭제
-                  </button>
-                )}
-              </article>
-            ))}
+                  <div className="xten-admin-v2-media-info">
+                    <h3>{video.title}</h3>
+
+                    <p>
+                      조회수 {video.views || 0}
+                      {" · "}
+                      좋아요 {video.likes_count || 0}
+                    </p>
+
+                    <button
+                      type="button"
+                      className="xten-admin-v2-danger-button full"
+                      onClick={() => deleteVideo(video.id)}
+                    >
+                      영상 삭제
+                    </button>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* =========================
+          IMAGES
+      ========================== */}
+
+      {tab === "images" && (
+        <section className="xten-admin-v2-panel">
+          <div className="xten-admin-v2-panel-head">
+            <div>
+              <span>IMAGES</span>
+              <h2>이미지 관리</h2>
+            </div>
+
+            <strong className="xten-admin-v2-result-count">
+              {images.length}개
+            </strong>
           </div>
 
-          {deletedVideos > 0 && (
-            <div className="xten-admin-footer-note">
-              삭제 처리된 영상 {deletedVideos}개가 있습니다.
+          {images.length === 0 ? (
+            <div className="xten-admin-v2-empty">이미지가 없습니다.</div>
+          ) : (
+            <div className="xten-admin-v2-management-grid image-grid">
+              {images.map((image) => {
+                const imageUrl = image.image_url || image.url || image.imageUrl;
+
+                return (
+                  <article key={image.id} className="xten-admin-v2-media-card">
+                    <div className="xten-admin-v2-media-thumb image">
+                      {imageUrl ? (
+                        <img src={imageUrl} alt={image.title || "이미지"} />
+                      ) : (
+                        <span>IMAGE</span>
+                      )}
+                    </div>
+
+                    <div className="xten-admin-v2-media-info">
+                      <h3>{image.title || "제목 없음"}</h3>
+
+                      <p>{image.description || "설명 없음"}</p>
+
+                      <small>
+                        {image.created_at
+                          ? new Date(image.created_at).toLocaleDateString(
+                              "ko-KR",
+                            )
+                          : "-"}
+                      </small>
+
+                      <button
+                        type="button"
+                        className="xten-admin-v2-danger-button full"
+                        onClick={() => deleteImage(image)}
+                      >
+                        이미지 삭제
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>
       )}
-    </div>
-  );
-}
 
-function StatCard({ label, value, sub, icon }) {
-  return (
-    <div className="xten-stat-card">
-      <div>
-        <span>{label}</span>
-        <strong>{value}</strong>
-        <p>{sub}</p>
-      </div>
+      {/* =========================
+          COMMENTS
+      ========================== */}
 
-      <div className="xten-stat-icon">{icon}</div>
+      {tab === "comments" && (
+        <section className="xten-admin-v2-panel">
+          <div className="xten-admin-v2-panel-head">
+            <div>
+              <span>COMMENTS</span>
+              <h2>댓글 관리</h2>
+            </div>
+
+            <strong className="xten-admin-v2-result-count">
+              {comments.length}개
+            </strong>
+          </div>
+
+          <div className="xten-admin-v2-list">
+            {comments.length === 0 ? (
+              <div className="xten-admin-v2-empty">댓글이 없습니다.</div>
+            ) : (
+              comments.map((comment) => (
+                <div key={comment.id} className="xten-admin-v2-comment-row">
+                  <div className="xten-admin-v2-comment-mark">C</div>
+
+                  <div className="xten-admin-v2-comment-main">
+                    <strong>{comment.content || "내용 없음"}</strong>
+
+                    <span>
+                      {comment.created_at
+                        ? new Date(comment.created_at).toLocaleString("ko-KR")
+                        : "-"}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="xten-admin-v2-danger-button"
+                    onClick={() => deleteComment(comment.id)}
+                  >
+                    삭제
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
