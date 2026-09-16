@@ -8589,3 +8589,700 @@ input:disabled {
     display: none;
   }
 }
+
+/* =========================================================
+   MY PAGE
+========================================================= */
+
+.xten-mypage {
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+/* HEADER */
+
+.xten-mypage-header {
+  margin-bottom: 22px;
+
+  padding-bottom: 22px;
+
+  border-bottom: 1px solid #222;
+}
+
+.xten-mypage-header > div > span {
+  color: #ff9000;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  letter-spacing: 1.8px;
+}
+
+.xten-mypage-header h1 {
+  margin: 8px 0 0;
+
+  color: #fff;
+
+  font-size: 32px;
+  font-weight: 900;
+}
+
+.xten-mypage-header p {
+  margin: 8px 0 0;
+
+  color: #666;
+
+  font-size: 11px;
+}
+
+/* PROFILE */
+
+.xten-mypage-profile {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    260px;
+
+  overflow: hidden;
+
+  margin-bottom: 42px;
+
+  border: 1px solid #292929;
+  border-radius: 17px;
+
+  background: #101010;
+}
+
+.xten-mypage-profile-main {
+  display: flex;
+  align-items: center;
+
+  gap: 25px;
+
+  padding: 28px;
+}
+
+/* AVATAR */
+
+.xten-mypage-avatar-area {
+  flex-shrink: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  align-items: center;
+
+  gap: 9px;
+}
+
+.xten-mypage-avatar {
+  position: relative;
+
+  width: 112px;
+  height: 112px;
+
+  overflow: hidden;
+
+  padding: 0;
+
+  border: 2px solid rgba(255, 144, 0, 0.42);
+
+  border-radius: 50%;
+
+  background: #191919;
+
+  color: #ff9000;
+
+  cursor: pointer;
+}
+
+.xten-mypage-avatar img {
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit: cover;
+}
+
+.xten-mypage-avatar > span {
+  width: 100%;
+  height: 100%;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  font-size: 37px;
+  font-weight: 900;
+}
+
+.xten-mypage-avatar-overlay {
+  position: absolute;
+
+  inset: 0;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.63);
+
+  opacity: 0;
+
+  transition: 0.2s;
+}
+
+.xten-mypage-avatar:hover .xten-mypage-avatar-overlay {
+  opacity: 1;
+}
+
+.xten-mypage-avatar-overlay strong {
+  color: #fff;
+
+  font-size: 11px;
+}
+
+.xten-mypage-avatar-change {
+  border: 0;
+
+  background: transparent;
+
+  color: #777;
+
+  font-size: 9px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.xten-mypage-avatar-change:hover {
+  color: #ff9000;
+}
+
+/* INFO */
+
+.xten-mypage-profile-info {
+  min-width: 0;
+
+  flex: 1;
+}
+
+.xten-mypage-label {
+  color: #ff9000;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 1.7px;
+}
+
+.xten-mypage-profile-info h2 {
+  margin: 7px 0 0;
+
+  color: #fff;
+
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.xten-mypage-profile-info > p {
+  margin: 5px 0 0;
+
+  color: #777;
+
+  font-size: 10px;
+}
+
+.xten-mypage-joined {
+  display: block;
+
+  margin-top: 8px;
+
+  color: #555;
+
+  font-size: 9px;
+}
+
+.xten-mypage-selected-file {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+  margin-top: 13px;
+
+  padding: 9px 11px;
+
+  border: 1px solid #292929;
+  border-radius: 9px;
+
+  background: #0d0d0d;
+}
+
+.xten-mypage-selected-file span {
+  color: #555;
+
+  font-size: 8px;
+}
+
+.xten-mypage-selected-file strong {
+  overflow: hidden;
+
+  color: #aaa;
+
+  font-size: 9px;
+
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.xten-mypage-success {
+  margin-top: 10px !important;
+
+  color: #7dbb82 !important;
+
+  font-size: 9px !important;
+}
+
+.xten-mypage-avatar-actions {
+  display: flex;
+
+  gap: 8px;
+
+  margin-top: 14px;
+}
+
+.xten-mypage-primary-button,
+.xten-mypage-secondary-button {
+  height: 38px;
+
+  padding: 0 13px;
+
+  border-radius: 9px;
+
+  font-size: 9px;
+  font-weight: 800;
+
+  cursor: pointer;
+}
+
+.xten-mypage-primary-button {
+  border: 0;
+
+  background: #ff9000;
+
+  color: #fff;
+}
+
+.xten-mypage-primary-button:hover {
+  background: #ffa21a;
+}
+
+.xten-mypage-primary-button:disabled {
+  background: #4b3217;
+
+  color: #806f59;
+
+  cursor: not-allowed;
+}
+
+.xten-mypage-secondary-button {
+  border: 1px solid #2d2d2d;
+
+  background: #161616;
+
+  color: #777;
+}
+
+.xten-mypage-secondary-button:hover {
+  color: #fff;
+}
+
+/* SIDE STATS */
+
+.xten-mypage-profile-side {
+  display: grid;
+
+  grid-template-columns: 1fr;
+
+  border-left: 1px solid #242424;
+}
+
+.xten-mypage-profile-side > div {
+  display: flex;
+
+  flex-direction: column;
+
+  justify-content: center;
+
+  padding: 16px 20px;
+
+  border-bottom: 1px solid #242424;
+}
+
+.xten-mypage-profile-side > div:last-child {
+  border-bottom: 0;
+}
+
+.xten-mypage-profile-side span {
+  color: #555;
+
+  font-size: 7px;
+  font-weight: 900;
+
+  letter-spacing: 1.5px;
+}
+
+.xten-mypage-profile-side strong {
+  margin-top: 5px;
+
+  color: #eee;
+
+  font-size: 18px;
+}
+
+/* SECTIONS */
+
+.xten-mypage-section {
+  margin-bottom: 44px;
+}
+
+.xten-mypage-section-head {
+  display: flex;
+
+  align-items: flex-end;
+  justify-content: space-between;
+
+  margin-bottom: 17px;
+}
+
+.xten-mypage-section-head span {
+  color: #ff9000;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 1.7px;
+}
+
+.xten-mypage-section-head h2 {
+  margin: 5px 0 0;
+
+  color: #fff;
+
+  font-size: 23px;
+}
+
+.xten-mypage-section-head p {
+  margin: 6px 0 0;
+
+  color: #5b5b5b;
+
+  font-size: 9px;
+}
+
+.xten-mypage-section-head > strong {
+  color: #555;
+
+  font-size: 10px;
+}
+
+/* VIDEO */
+
+.xten-mypage-video-grid {
+  display: grid;
+
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+
+  gap: 19px;
+}
+
+.xten-mypage-video-card {
+  overflow: hidden;
+
+  border: 1px solid #292929;
+  border-radius: 15px;
+
+  background: #111;
+
+  cursor: pointer;
+
+  transition: 0.2s;
+}
+
+.xten-mypage-video-card:hover {
+  transform: translateY(-3px);
+
+  border-color: rgba(255, 144, 0, 0.4);
+}
+
+.xten-mypage-video-thumb {
+  aspect-ratio: 16 / 9;
+
+  overflow: hidden;
+
+  background: #171717;
+}
+
+.xten-mypage-video-thumb img {
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit: cover;
+}
+
+.xten-mypage-video-thumb > div {
+  width: 100%;
+  height: 100%;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  color: #ff9000;
+
+  font-size: 26px;
+}
+
+.xten-mypage-video-info {
+  padding: 14px;
+}
+
+.xten-mypage-video-info > span {
+  color: #ff9000;
+
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.xten-mypage-video-info h3 {
+  margin: 7px 0 0;
+
+  color: #eee;
+
+  font-size: 14px;
+
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+
+  overflow: hidden;
+}
+
+.xten-mypage-video-info p {
+  margin: 8px 0 0;
+
+  color: #555;
+
+  font-size: 9px;
+}
+
+/* IMAGE */
+
+.xten-mypage-image-grid {
+  display: grid;
+
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+
+  gap: 17px;
+}
+
+.xten-mypage-image-card {
+  overflow: hidden;
+
+  border: 1px solid #292929;
+  border-radius: 15px;
+
+  background: #111;
+
+  cursor: pointer;
+
+  transition: 0.2s;
+}
+
+.xten-mypage-image-card:hover {
+  transform: translateY(-3px);
+
+  border-color: rgba(255, 144, 0, 0.4);
+}
+
+.xten-mypage-image-thumb {
+  aspect-ratio: 4 / 3;
+
+  overflow: hidden;
+
+  background: #171717;
+}
+
+.xten-mypage-image-thumb img {
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit: cover;
+}
+
+.xten-mypage-image-thumb > div {
+  width: 100%;
+  height: 100%;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  color: #555;
+
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.xten-mypage-image-info {
+  padding: 13px;
+}
+
+.xten-mypage-image-info h3 {
+  margin: 0;
+
+  color: #eee;
+
+  font-size: 12px;
+}
+
+.xten-mypage-image-info p {
+  margin: 6px 0 0;
+
+  color: #666;
+
+  font-size: 9px;
+
+  line-height: 1.5;
+
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+
+  overflow: hidden;
+}
+
+/* EMPTY */
+
+.xten-mypage-empty {
+  min-height: 230px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  border: 1px dashed #292929;
+  border-radius: 15px;
+
+  background: #0d0d0d;
+
+  text-align: center;
+}
+
+.xten-mypage-empty > span {
+  color: #ff9000;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 2px;
+}
+
+.xten-mypage-empty h3 {
+  margin: 10px 0 0;
+
+  color: #aaa;
+
+  font-size: 14px;
+}
+
+.xten-mypage-empty p {
+  margin: 6px 0 0;
+
+  color: #555;
+
+  font-size: 9px;
+}
+
+.xten-mypage-loading {
+  min-height: 220px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 1000px) {
+  .xten-mypage-profile {
+    grid-template-columns: 1fr;
+  }
+
+  .xten-mypage-profile-side {
+    grid-template-columns: repeat(3, 1fr);
+
+    border-top: 1px solid #242424;
+    border-left: 0;
+  }
+
+  .xten-mypage-profile-side > div {
+    border-right: 1px solid #242424;
+    border-bottom: 0;
+  }
+
+  .xten-mypage-profile-side > div:last-child {
+    border-right: 0;
+  }
+
+  .xten-mypage-video-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .xten-mypage-image-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 650px) {
+  .xten-mypage-profile-main {
+    align-items: flex-start;
+
+    flex-direction: column;
+
+    padding: 22px;
+  }
+
+  .xten-mypage-profile-info {
+    width: 100%;
+  }
+
+  .xten-mypage-profile-side {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .xten-mypage-avatar-actions {
+    flex-wrap: wrap;
+  }
+
+  .xten-mypage-video-grid,
+  .xten-mypage-image-grid {
+    grid-template-columns: 1fr;
+  }
+}
