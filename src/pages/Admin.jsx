@@ -35,6 +35,10 @@ function Admin() {
     setLoading(false);
   };
 
+  /* =========================================================
+     USERS
+  ========================================================= */
+
   const loadUsers = async () => {
     const { data, error } = await supabase
       .from("profiles")
@@ -49,18 +53,25 @@ function Admin() {
       return;
     }
 
-    setUsers(data || []);
+    const nextUsers = data || [];
+
+    setUsers(nextUsers);
 
     setStats((prev) => ({
       ...prev,
-      users: data?.length || 0,
+      users: nextUsers.length,
     }));
   };
+
+  /* =========================================================
+     VIDEOS
+  ========================================================= */
 
   const loadVideos = async () => {
     const { data, error } = await supabase
       .from("videos")
       .select("*")
+      .neq("status", "deleted")
       .order("created_at", {
         ascending: false,
       });
@@ -71,13 +82,19 @@ function Admin() {
       return;
     }
 
-    setVideos(data || []);
+    const nextVideos = data || [];
+
+    setVideos(nextVideos);
 
     setStats((prev) => ({
       ...prev,
-      videos: data?.length || 0,
+      videos: nextVideos.length,
     }));
   };
+
+  /* =========================================================
+     COMMENTS
+  ========================================================= */
 
   const loadComments = async () => {
     const { data, error } = await supabase
@@ -93,13 +110,19 @@ function Admin() {
       return;
     }
 
-    setComments(data || []);
+    const nextComments = data || [];
+
+    setComments(nextComments);
 
     setStats((prev) => ({
       ...prev,
-      comments: data?.length || 0,
+      comments: nextComments.length,
     }));
   };
+
+  /* =========================================================
+     IMAGES
+  ========================================================= */
 
   const loadImages = async () => {
     const { data, error } = await supabase
@@ -115,16 +138,24 @@ function Admin() {
       return;
     }
 
-    setImages(data || []);
+    const nextImages = data || [];
+
+    setImages(nextImages);
 
     setStats((prev) => ({
       ...prev,
-      images: data?.length || 0,
+      images: nextImages.length,
     }));
   };
 
+  /* =========================================================
+     USER DELETE
+  ========================================================= */
+
   const deleteUser = async (id) => {
-    const ok = window.confirm("이 사용자를 삭제하시겠습니까?");
+    const ok = window.confirm(
+      "이 사용자의 프로필을 삭제하시겠습니까?\n\n프로필 데이터가 삭제됩니다.",
+    );
 
     if (!ok) return;
 
@@ -133,7 +164,7 @@ function Admin() {
     if (error) {
       console.error("사용자 삭제 오류:", error);
 
-      alert("사용자 삭제에 실패했습니다.\n" + error.message);
+      alert("사용자 삭제에 실패했습니다.\n\n" + error.message);
 
       return;
     }
@@ -146,8 +177,16 @@ function Admin() {
     }));
   };
 
+  /* =========================================================
+     VIDEO DELETE
+  ========================================================= */
+
   const deleteVideo = async (id) => {
-    const ok = window.confirm("이 영상을 삭제하시겠습니까?");
+    const target = videos.find((video) => video.id === id);
+
+    const ok = window.confirm(
+      `"${target?.title || "이 영상"}"을 삭제하시겠습니까?\n\n삭제된 영상은 관리자 목록과 최근 영상에서 제외됩니다.`,
+    );
 
     if (!ok) return;
 
@@ -161,65 +200,122 @@ function Admin() {
     if (error) {
       console.error("영상 삭제 오류:", error);
 
-      alert("영상 삭제에 실패했습니다.\n" + error.message);
+      alert("영상 삭제에 실패했습니다.\n\n" + error.message);
 
       return;
     }
 
+    // 현재 목록에서 즉시 제거
     setVideos((prev) => prev.filter((video) => video.id !== id));
 
+    // 통계 즉시 감소
     setStats((prev) => ({
       ...prev,
       videos: Math.max(0, prev.videos - 1),
     }));
   };
 
+  /* =========================================================
+     COMMENT DELETE
+  ========================================================= */
+
   const deleteComment = async (id) => {
-    const ok = window.confirm("이 댓글을 삭제하시겠습니까?");
+    const target = comments.find((comment) => comment.id === id);
+
+    const ok = window.confirm(
+      `"${target?.content || "이 댓글"}"을 삭제하시겠습니까?\n\n답글이 있다면 함께 삭제를 시도합니다.`,
+    );
 
     if (!ok) return;
 
+    /*
+     * 1. 자식 댓글 삭제
+     */
+    const { error: childError } = await supabase
+      .from("comments")
+      .delete()
+      .eq("parent_id", id);
+
+    if (childError) {
+      console.warn("답글 삭제 오류:", childError);
+    }
+
+    /*
+     * 2. 본 댓글 삭제
+     */
     const { error } = await supabase.from("comments").delete().eq("id", id);
 
     if (error) {
       console.error("댓글 삭제 오류:", error);
 
-      alert("댓글 삭제에 실패했습니다.\n" + error.message);
+      alert("댓글 삭제에 실패했습니다.\n\n" + error.message);
 
       return;
     }
 
-    setComments((prev) => prev.filter((comment) => comment.id !== id));
+    /*
+     * 3. 화면에서 본 댓글 + 답글 제거
+     */
+    setComments((prev) =>
+      prev.filter((comment) => comment.id !== id && comment.parent_id !== id),
+    );
 
+    /*
+     * 4. 실제 현재 목록 기준으로 다시 계산
+     */
     setStats((prev) => ({
       ...prev,
-      comments: Math.max(0, prev.comments - 1),
+      comments: Math.max(
+        0,
+        comments.filter(
+          (comment) => comment.id !== id && comment.parent_id !== id,
+        ).length,
+      ),
     }));
   };
+
+  /* =========================================================
+     IMAGE STORAGE PATH
+  ========================================================= */
 
   const getImageStoragePath = (url) => {
     if (!url) return null;
 
     try {
       const parsed = new URL(url);
+      const pathname = parsed.pathname;
 
-      const marker = "/storage/v1/object/public/images/";
+      const markers = [
+        "/storage/v1/object/public/images/",
+        "/storage/v1/object/sign/images/",
+        "/storage/v1/object/images/",
+      ];
 
-      const index = parsed.pathname.indexOf(marker);
+      for (const marker of markers) {
+        const index = pathname.indexOf(marker);
 
-      if (index === -1) {
-        return null;
+        if (index !== -1) {
+          return decodeURIComponent(pathname.slice(index + marker.length));
+        }
       }
 
-      return decodeURIComponent(parsed.pathname.slice(index + marker.length));
-    } catch {
+      return null;
+    } catch (error) {
+      console.warn("이미지 Storage 경로 분석 실패:", error);
+
       return null;
     }
   };
 
+  /* =========================================================
+     IMAGE DELETE
+  ========================================================= */
+
   const deleteImage = async (image) => {
+    const imageTitle = image.title || "제목 없음";
+
     const ok = window.confirm(
-      `"${image.title || "제목 없음"}" 이미지를 삭제하시겠습니까?\n\n삭제하면 되돌릴 수 없습니다.`,
+      `"${imageTitle}" 이미지를 삭제하시겠습니까?\n\nDB와 Storage의 이미지를 삭제합니다.\n삭제하면 되돌릴 수 없습니다.`,
     );
 
     if (!ok) return;
@@ -227,33 +323,45 @@ function Admin() {
     try {
       const imageUrl = image.image_url || image.url || image.imageUrl;
 
+      /*
+       * 1. Storage 파일 삭제
+       */
       const storagePath = getImageStoragePath(imageUrl);
 
       if (storagePath) {
-        const { error } = await supabase.storage
+        const { error: storageError } = await supabase.storage
           .from("images")
           .remove([storagePath]);
 
-        if (error) {
-          console.warn("Storage 이미지 삭제 실패:", error);
+        if (storageError) {
+          console.warn("Storage 이미지 삭제 실패:", storageError);
         }
       }
 
-      const { error: dbError } = await supabase
+      /*
+       * 2. DB 삭제
+       */
+      const { error: databaseError } = await supabase
         .from("image_posts")
         .delete()
         .eq("id", image.id);
 
-      if (dbError) {
-        console.error("이미지 DB 삭제 오류:", dbError);
+      if (databaseError) {
+        console.error("이미지 DB 삭제 오류:", databaseError);
 
-        alert("이미지 삭제에 실패했습니다.\n" + dbError.message);
+        alert("이미지 DB 삭제에 실패했습니다.\n\n" + databaseError.message);
 
         return;
       }
 
+      /*
+       * 3. 화면에서 제거
+       */
       setImages((prev) => prev.filter((item) => item.id !== image.id));
 
+      /*
+       * 4. 통계 감소
+       */
       setStats((prev) => ({
         ...prev,
         images: Math.max(0, prev.images - 1),
@@ -265,27 +373,37 @@ function Admin() {
     }
   };
 
+  /* =========================================================
+     RECENT DATA
+  ========================================================= */
+
   const recentUsers = useMemo(() => users.slice(0, 5), [users]);
 
   const recentVideos = useMemo(() => videos.slice(0, 5), [videos]);
 
   const recentImages = useMemo(() => images.slice(0, 6), [images]);
 
+  /* =========================================================
+     LOADING
+  ========================================================= */
+
   if (loading) {
     return (
       <div className="xten-admin-v2-loading">
         <div className="xten-admin-v2-spinner" />
+
         <p>관리자 데이터를 불러오는 중...</p>
       </div>
     );
   }
 
+  /* =========================================================
+     RENDER
+  ========================================================= */
+
   return (
     <div className="xten-admin-v2">
-      {/* =========================
-          HEADER
-      ========================== */}
-
+      {/* HEADER */}
       <header className="xten-admin-v2-header">
         <div>
           <span className="xten-admin-v2-eyebrow">XTEN ADMIN</span>
@@ -304,17 +422,16 @@ function Admin() {
         </button>
       </header>
 
-      {/* =========================
-          STATS
-      ========================== */}
-
+      {/* STATS */}
       <section className="xten-admin-v2-stat-grid">
         <div className="xten-admin-v2-stat-card">
           <div className="xten-admin-v2-stat-icon">U</div>
 
           <div>
             <span>USERS</span>
+
             <strong>{stats.users}</strong>
+
             <p>전체 사용자</p>
           </div>
         </div>
@@ -324,8 +441,10 @@ function Admin() {
 
           <div>
             <span>VIDEOS</span>
+
             <strong>{stats.videos}</strong>
-            <p>전체 영상</p>
+
+            <p>현재 영상</p>
           </div>
         </div>
 
@@ -334,7 +453,9 @@ function Admin() {
 
           <div>
             <span>IMAGES</span>
+
             <strong>{stats.images}</strong>
+
             <p>전체 이미지</p>
           </div>
         </div>
@@ -344,16 +465,15 @@ function Admin() {
 
           <div>
             <span>COMMENTS</span>
+
             <strong>{stats.comments}</strong>
+
             <p>전체 댓글</p>
           </div>
         </div>
       </section>
 
-      {/* =========================
-          NAV
-      ========================== */}
-
+      {/* TABS */}
       <nav className="xten-admin-v2-tabs">
         <button
           type="button"
@@ -400,19 +520,19 @@ function Admin() {
         </button>
       </nav>
 
-      {/* =========================
+      {/* =====================================================
           OVERVIEW
-      ========================== */}
+      ====================================================== */}
 
       {tab === "overview" && (
         <section className="xten-admin-v2-overview">
           <div className="xten-admin-v2-overview-grid">
-            {/* 최근 사용자 */}
-
+            {/* USERS */}
             <section className="xten-admin-v2-panel">
               <div className="xten-admin-v2-panel-head">
                 <div>
                   <span>RECENT USERS</span>
+
                   <h2>최근 가입</h2>
                 </div>
 
@@ -448,12 +568,12 @@ function Admin() {
               </div>
             </section>
 
-            {/* 최근 영상 */}
-
+            {/* VIDEOS */}
             <section className="xten-admin-v2-panel">
               <div className="xten-admin-v2-panel-head">
                 <div>
                   <span>RECENT VIDEOS</span>
+
                   <h2>최근 영상</h2>
                 </div>
 
@@ -492,8 +612,7 @@ function Admin() {
             </section>
           </div>
 
-          {/* 최근 이미지 */}
-
+          {/* IMAGES */}
           <section className="xten-admin-v2-panel">
             <div className="xten-admin-v2-panel-head">
               <div>
@@ -536,15 +655,16 @@ function Admin() {
         </section>
       )}
 
-      {/* =========================
+      {/* =====================================================
           USERS
-      ========================== */}
+      ====================================================== */}
 
       {tab === "users" && (
         <section className="xten-admin-v2-panel">
           <div className="xten-admin-v2-panel-head">
             <div>
               <span>USERS</span>
+
               <h2>사용자 관리</h2>
             </div>
 
@@ -593,15 +713,16 @@ function Admin() {
         </section>
       )}
 
-      {/* =========================
+      {/* =====================================================
           VIDEOS
-      ========================== */}
+      ====================================================== */}
 
       {tab === "videos" && (
         <section className="xten-admin-v2-panel">
           <div className="xten-admin-v2-panel-head">
             <div>
               <span>VIDEOS</span>
+
               <h2>영상 관리</h2>
             </div>
 
@@ -652,15 +773,16 @@ function Admin() {
         </section>
       )}
 
-      {/* =========================
+      {/* =====================================================
           IMAGES
-      ========================== */}
+      ====================================================== */}
 
       {tab === "images" && (
         <section className="xten-admin-v2-panel">
           <div className="xten-admin-v2-panel-head">
             <div>
               <span>IMAGES</span>
+
               <h2>이미지 관리</h2>
             </div>
 
@@ -715,15 +837,16 @@ function Admin() {
         </section>
       )}
 
-      {/* =========================
+      {/* =====================================================
           COMMENTS
-      ========================== */}
+      ====================================================== */}
 
       {tab === "comments" && (
         <section className="xten-admin-v2-panel">
           <div className="xten-admin-v2-panel-head">
             <div>
               <span>COMMENTS</span>
+
               <h2>댓글 관리</h2>
             </div>
 
