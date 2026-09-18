@@ -92,12 +92,13 @@ function VideoDetail({ videoId, onBack }) {
       );
     }
 
-    await supabase
-      .from("videos")
-      .update({
-        views: (data.views || 0) + 1,
-      })
-      .eq("id", videoId);
+    const { error: viewError } = await supabase.rpc("increment_video_view", {
+      p_video_id: videoId,
+    });
+
+    if (viewError) {
+      console.warn("조회수 증가 오류:", viewError);
+    }
 
     setLoading(false);
   };
@@ -178,46 +179,22 @@ function VideoDetail({ videoId, onBack }) {
       return;
     }
 
-    if (liked) {
-      const { error } = await supabase
-        .from("video_likes")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("video_id", videoId);
+    const { data, error } = await supabase.rpc("toggle_video_like", {
+      p_video_id: videoId,
+    });
 
-      if (error) return;
-
-      const newCount = Math.max(0, likeCount - 1);
-
-      await supabase
-        .from("videos")
-        .update({
-          likes_count: newCount,
-        })
-        .eq("id", videoId);
-
-      setLiked(false);
-      setLikeCount(newCount);
-    } else {
-      const { error } = await supabase.from("video_likes").insert({
-        user_id: user.id,
-        video_id: videoId,
-      });
-
-      if (error) return;
-
-      const newCount = likeCount + 1;
-
-      await supabase
-        .from("videos")
-        .update({
-          likes_count: newCount,
-        })
-        .eq("id", videoId);
-
-      setLiked(true);
-      setLikeCount(newCount);
+    if (error) {
+      console.error("좋아요 처리 오류:", error);
+      setMessage("좋아요 처리에 실패했습니다.");
+      return;
     }
+
+    const result = Array.isArray(data) ? data[0] : data;
+
+    if (!result) return;
+
+    setLiked(Boolean(result.liked));
+    setLikeCount(Number(result.likes_count) || 0);
   };
 
   const handleSave = async () => {
